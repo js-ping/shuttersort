@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 打包产物
+packaging/build/
+packaging/dist/
+packaging/*.spec
+*.app
+
+# 运行时数据（撤销记录 / 日志）
+rename-history/
+*.log
+
+# 系统杂项
+.DS_Store
+Thumbs.db

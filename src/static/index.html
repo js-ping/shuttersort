@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShutterSort · 把 iPhone 拍摄时间写回文件名</title>
+<style>
+:root{
+  --bg:#141416; --panel:#1c1c1f; --panel2:#202024; --line:#2c2c31; --line2:#38383f;
+  --fg:#f2f2f4; --fg2:#c3c3c9; --fg3:#8a8a93;
+  --accent:#cfa9ff; --accent2:#a97ef0;
+  --ok:#5fd39a; --warn:#f0c674; --bad:#f08a8a; --info:#7fc3f0;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--fg);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:#3a3a41;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#4d4d56;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- 顶栏 ---------- */
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 20px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#1b1b1f,#161619);flex:none;
+}
+.logo{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  background:linear-gradient(145deg,#cfa9ff,#8d5ce0);
+  display:grid;place-items:center;font-size:19px;color:#1a1024;
+  box-shadow:0 4px 14px rgba(160,110,240,.35);
+}
+.brand h1{font-size:16px;font-weight:700;letter-spacing:.3px}
+.brand p{font-size:11.5px;color:var(--fg3);margin-top:1px}
+.spacer{flex:1}
+.badges{display:flex;gap:7px;flex-wrap:wrap}
+.badge{
+  font-size:11px;padding:3px 9px;border-radius:20px;
+  border:1px solid var(--line2);color:var(--fg2);background:#222227;
+  display:flex;align-items:center;gap:5px;
+}
+.badge b{color:var(--fg);font-weight:600}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--fg3)}
+.dot.on{background:var(--ok);box-shadow:0 0 6px rgba(95,211,154,.7)}
+.dot.off{background:#6b6b73}
+
+/* ---------- 按钮 ---------- */
+button{font-family:inherit;cursor:pointer;border:1px solid var(--line2);background:#26262b;color:var(--fg);
+  border-radius:10px;padding:8px 14px;font-size:13px;transition:.14s;white-space:nowrap}
+button:hover:not(:disabled){background:#2f2f36;border-color:#46464f}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.42;cursor:not-allowed}
+button.primary{background:var(--accent);color:#1a1024;border-color:var(--accent);font-weight:700}
+button.primary:hover:not(:disabled){background:#e0c6ff}
+button.ghost{background:transparent}
+button.ghost:hover:not(:disabled){background:#26262b}
+button.link{background:none;border:none;color:var(--accent);padding:4px 6px}
+button.link:hover{color:#e3cdff;text-decoration:underline}
+button.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+button.danger{background:#3a2020;border-color:#5c2c2c;color:#ffd9d9}
+button.danger:hover:not(:disabled){background:#4a2828}
+
+/* ---------- 布局 ---------- */
+main{flex:1;display:grid;grid-template-columns:376px 1fr;overflow:hidden}
+aside{border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;background:#17171a}
+section.stage{display:flex;flex-direction:column;overflow:hidden;padding:16px 18px;gap:12px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.card>h2{font-size:12px;font-weight:700;color:var(--fg2);letter-spacing:.6px;margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;text-transform:uppercase}
+.card>h2 .n{width:18px;height:18px;border-radius:6px;background:#2b2b32;color:var(--fg2);
+  display:grid;place-items:center;font-size:10.5px;font-weight:700}
+.card>h2 .r{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;font-size:11px}
+
+label.f{display:block;font-size:12px;color:var(--fg3);margin:10px 0 5px}
+input[type=text],select{
+  width:100%;background:#131316;border:1px solid var(--line2);color:var(--fg);
+  border-radius:10px;padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(207,169,255,.12)}
+input::placeholder{color:#5f5f68}
+select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238a8a93'/></svg>");
+  background-repeat:no-repeat;background-position:right 11px center;padding-right:30px}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+.chk{display:flex;align-items:flex-start;gap:9px;padding:7px 0;cursor:pointer;font-size:12.5px;color:var(--fg2);line-height:1.45}
+.chk input{appearance:none;width:17px;height:17px;flex:none;margin-top:1px;border:1.5px solid #4a4a53;
+  border-radius:5px;background:#131316;cursor:pointer;position:relative;transition:.14s}
+.chk input:checked{background:var(--accent);border-color:var(--accent)}
+.chk input:checked::after{content:"";position:absolute;left:5px;top:1.5px;width:5px;height:9px;
+  border:solid #1a1024;border-width:0 2px 2px 0;transform:rotate(43deg)}
+.chk:hover input{border-color:#6a6a75}
+.chk small{display:block;color:var(--fg3);font-size:11px;margin-top:2px;line-height:1.4}
+
+.note{font-size:11.5px;color:var(--fg3);line-height:1.6;background:#1a1a1e;border:1px solid var(--line);
+  border-radius:10px;padding:9px 11px}
+.note b{color:var(--fg2);font-weight:600}
+.note.warn{border-color:#4b3d22;background:#221d13;color:#d9c08b}
+
+.btnbar{display:flex;gap:9px}
+.btnbar button{flex:1;padding:12px;font-size:13.5px;font-weight:600}
+#btnRename{flex:2.2}
+
+/* ---------- 统计 ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat .v{font-size:19px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
+.stat .k{font-size:11px;color:var(--fg3);margin-top:2px}
+.stat.ok .v{color:var(--ok)} .stat.warn .v{color:var(--warn)} .stat.info .v{color:var(--info)}
+
+/* ---------- 表格 ---------- */
+.tablewrap{flex:1;overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:#18181b;position:relative}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+thead th{
+  position:sticky;top:0;z-index:3;background:#1f1f24;text-align:left;font-weight:600;color:var(--fg2);
+  padding:9px 10px;border-bottom:1px solid var(--line2);font-size:11.5px;white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--fg)}
+thead th::after{content:"";opacity:.35;margin-left:5px;font-size:9px}
+thead th.s-asc::after{content:"▲"} thead th.s-desc::after{content:"▼"}
+tbody td{padding:7px 10px;border-bottom:1px solid #232329;vertical-align:middle}
+tbody tr:hover{background:#202027}
+tbody tr.sel{background:#28243a}
+tbody tr.st-skip{opacity:.62}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px}
+.oldname{color:var(--fg3);word-break:break-all}
+.newname{color:var(--fg);word-break:break-all;font-weight:500}
+.arrow{color:var(--accent);margin:0 6px;font-weight:700}
+.thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#242429;border:1px solid var(--line);
+  display:block}
+.thumb.ph{display:grid;place-items:center;font-size:14px;color:var(--fg3)}
+.src{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2.5px 8px;border-radius:20px;
+  white-space:nowrap;border:1px solid transparent;font-weight:500}
+.src.exif{background:rgba(95,211,154,.13);color:#7fe0b3;border-color:rgba(95,211,154,.25)}
+.src.xmp{background:rgba(127,195,240,.13);color:#9fd4f7;border-color:rgba(127,195,240,.25)}
+.src.qt{background:rgba(207,169,255,.14);color:#dcc0ff;border-color:rgba(207,169,255,.28)}
+.src.name{background:rgba(240,198,116,.13);color:#f2d193;border-color:rgba(240,198,116,.25)}
+.src.side{background:rgba(240,138,138,.13);color:#f5a8a8;border-color:rgba(240,138,138,.25)}
+.src.fs{background:rgba(150,150,160,.14);color:#bcbcc6;border-color:rgba(150,150,160,.24)}
+.src.none{background:rgba(120,120,130,.12);color:#8a8a93;border-color:rgba(120,120,130,.2)}
+.pill{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:6px;font-weight:600}
+.pill.ok{background:rgba(95,211,154,.15);color:#7fe0b3}
+.pill.same{background:rgba(150,150,160,.14);color:#bcbcc6}
+.pill.skip{background:rgba(240,138,138,.14);color:#f5a8a8}
+.pill.cf{background:rgba(240,198,116,.15);color:#f2d193}
+
+.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--fg3);
+  padding:40px;pointer-events:none}
+.empty .big{font-size:40px;margin-bottom:12px;opacity:.55}
+.empty h3{font-size:15px;color:var(--fg2);font-weight:600;margin-bottom:6px}
+.empty p{font-size:12.5px;line-height:1.7;max-width:420px}
+
+.bar{height:5px;background:#26262c;border-radius:3px;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));
+  border-radius:3px;transition:width .25s}
+.progline{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg3)}
+
+/* ---------- 弹窗 ---------- */
+.mask{position:fixed;inset:0;background:rgba(8,8,10,.72);backdrop-filter:blur(3px);z-index:50;
+  display:none;place-items:center;padding:24px}
+.mask.show{display:grid}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:18px;width:min(760px,100%);
+  max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+.modal header{background:var(--panel2);padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal header h3{font-size:14.5px;font-weight:700}
+.modal .body{padding:16px 18px;overflow-y:auto;font-size:13px;line-height:1.7;color:var(--fg2)}
+.modal footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;
+  background:var(--panel2)}
+.modal .body ul{margin:8px 0 0 18px}
+.modal .body li{margin:3px 0}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:12.5px;margin-top:10px}
+.kv b{color:var(--fg3);font-weight:500}
+.hist{display:flex;flex-direction:column;gap:8px}
+.hist .it{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:11px;background:var(--panel2);font-size:12.5px}
+.hist .it .t{flex:1;min-width:0}
+.hist .it .t div:first-child{color:var(--fg)}
+.hist .it .t div:last-child{color:var(--fg3);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:#2a2a32;border:1px solid var(--line2);color:var(--fg);padding:11px 18px;border-radius:12px;
+  font-size:13px;opacity:0;transition:.28s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:80vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:rgba(95,211,154,.5)} .toast.bad{border-color:rgba(240,138,138,.5)}
+
+/* 目录浏览器 */
+.crumbs{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--fg3);margin-bottom:10px;flex-wrap:wrap}
+.dirlist{max-height:44vh;overflow-y:auto;border:1px solid var(--line);border-radius:11px;background:#141417}
+.dirlist .d{display:flex;align-items:center;gap:9px;padding:9px 12px;cursor:pointer;border-bottom:1px solid #232329;font-size:12.5px}
+.dirlist .d:last-child{border-bottom:none}
+.dirlist .d:hover{background:#22222a}
+.dirlist .d .c{margin-left:auto;color:var(--fg3);font-size:11px}
+.dirlist .d .ic{color:var(--warn)}
+
+.splitter{height:1px;background:var(--line);margin:10px 0}
+details.adv summary{cursor:pointer;font-size:12px;color:var(--fg3);padding:6px 0;list-style:none;
+  display:flex;align-items:center;gap:7px;user-select:none}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::before{content:"▸";transition:.2s;display:inline-block}
+details.adv[open] summary::before{transform:rotate(90deg)}
+details.adv summary:hover{color:var(--accent)}
+
+@media (max-width:1080px){
+  main{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  aside{max-height:44vh;border-right:none;border-bottom:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⏱</div>
+  <div class="brand">
+    <h1>ShutterSort</h1>
+    <p>iPhone 拍的照片视频，导出后文件名看不出时间 · 用真实拍摄时间改回来 · 全部本机处理</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="badges" id="badges"></div>
+  <button class="ghost sm" onclick="openHelp()">说明书</button>
+  <button class="ghost sm" onclick="openHistory()">撤销</button>
+</header>
+
+<main>
+  <aside>
+    <!-- 1 选择文件夹 -->
+    <div class="card">
+      <h2><span class="n">1</span>选择文件夹<span class="r" id="scanStage"></span></h2>
+      <div class="row">
+        <input type="text" id="folder" placeholder="点击右侧「选择」或直接粘贴路径">
+        <button class="sm" onclick="pickFolder()">选择</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="sm ghost" style="flex:1" onclick="openBrowse()">浏览目录</button>
+        <button class="sm ghost" style="flex:1" onclick="reveal()">在访达中打开</button>
+      </div>
+      <label class="chk" style="margin-top:6px">
+        <input type="checkbox" id="recursive" checked>
+        <span>包含子文件夹<small>递归扫描所有下级目录</small></span>
+      </label>
+      <div class="progline" id="progLine" style="display:none">
+        <div class="bar"><i id="progBar" style="width:0"></i></div>
+        <span class="mono" id="progText">0/0</span>
+      </div>
+    </div>
+
+    <!-- 2 命名规则 -->
+    <div class="card">
+      <h2><span class="n">2</span>命名规则</h2>
+      <label class="f">日期格式</label>
+      <select id="fmt">
+        <option value="%Y%m%d_%H%M%S">20240506_153008　（推荐）</option>
+        <option value="%Y-%m-%d_%H-%M-%S">2024-05-06_15-30-08</option>
+        <option value="%Y-%m-%d %H.%M.%S">2024-05-06 15.30.08</option>
+        <option value="%Y年%m月%d日_%H时%M分%S秒">2024年05月06日_15时30分08秒</option>
+        <option value="%Y%m%d%H%M%S">20240506153008</option>
+        <option value="__custom__">自定义…</option>
+      </select>
+      <input type="text" id="fmtCustom" placeholder="自定义格式，如 %Y%m%d_%H%M%S" style="display:none;margin-top:7px">
+      <div class="note" style="margin-top:8px" id="fmtPreview"></div>
+
+      <label class="f">命名方式</label>
+      <select id="pattern">
+        <option value="仅日期">仅日期　→　20240506_153008.jpg</option>
+        <option value="日期_原名">日期_原名　→　20240506_153008_IMG_1234.jpg</option>
+        <option value="原名_日期">原名_日期　→　IMG_1234_20240506_153008.jpg</option>
+        <option value="仅原名">仅原名（只加前后缀）</option>
+      </select>
+
+      <div class="grid2" style="margin-top:10px">
+        <div><label class="f">前缀</label><input type="text" id="prefix" value="IMG_" placeholder="可留空"></div>
+        <div><label class="f">后缀</label><input type="text" id="suffix" placeholder="可留空"></div>
+      </div>
+
+      <div class="splitter"></div>
+      <label class="chk">
+        <input type="checkbox" id="archive">
+        <span>按日期归档到子文件夹<small>例如自动分到 <b>2024/2024-05</b> 里</small></span>
+      </label>
+      <input type="text" id="archiveFmt" value="%Y/%Y-%m" placeholder="%Y/%Y-%m" style="display:none">
+    </div>
+
+    <!-- 3 时间戳来源 -->
+    <div class="card">
+      <h2><span class="n">3</span>时间戳来源</h2>
+      <label class="f">找不到时间戳时</label>
+      <select id="fallback">
+        <option value="skip">跳过该文件（推荐，最安全）</option>
+        <option value="created">用文件创建时间兜底</option>
+        <option value="modified">用文件修改时间兜底</option>
+      </select>
+      <details class="adv" style="margin-top:6px">
+        <summary>高级：解析层级开关</summary>
+        <label class="chk"><input type="checkbox" id="useExiftool" checked>
+          <span>使用系统 exiftool 增强<small>装了 exiftool 时覆盖度更高；没装会自动用内置解析器</small></span></label>
+        <label class="chk"><input type="checkbox" id="readXmp" checked>
+          <span>读取 .xmp 旁车文件</span></label>
+        <label class="chk"><input type="checkbox" id="readJson" checked>
+          <span>读取 Google Takeout .json 旁车文件</span></label>
+        <label class="chk"><input type="checkbox" id="parseFilename" checked>
+          <span>从文件名解析时间<small>DJI / IMG_ / VID_ / WhatsApp / 截图 等常见命名</small></span></label>
+        <label class="chk"><input type="checkbox" id="onlyMedia" checked>
+          <span>只扫描照片和视频<small>关闭后会尝试处理目录内所有文件</small></span></label>
+      </details>
+    </div>
+
+    <!-- 4 执行 -->
+    <div class="card">
+      <h2><span class="n">4</span>预览与执行</h2>
+      <div class="btnbar">
+        <button class="primary" id="btnRename" onclick="askRename()" disabled>开始改名</button>
+        <button id="btnCancel" onclick="cancelScan()" style="display:none">停止</button>
+      </div>
+      <div class="note" style="margin-top:10px">
+        改名是<b>原地重命名</b>，不复制文件、不损失画质。每次改名都会生成一份可撤销记录。
+      </div>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="stats">
+      <div class="stat info"><div class="v" id="sTotal">0</div><div class="k">扫描文件</div></div>
+      <div class="stat ok"><div class="v" id="sRename">0</div><div class="k">待改名</div></div>
+      <div class="stat warn"><div class="v" id="sSkip">0</div><div class="k">无时间戳</div></div>
+      <div class="stat"><div class="v" id="sSame">0</div><div class="k">无需改动</div></div>
+    </div>
+
+    <div class="row">
+      <input type="text" id="filter" placeholder="筛选：文件名 / 时间 / 来源…">
+      <select id="filterStatus" style="width:auto;min-width:132px">
+        <option value="">全部状态</option>
+        <option value="ok">仅待改名</option>
+        <option value="skip">仅无时间戳</option>
+        <option value="same">仅无需改动</option>
+      </select>
+      <button class="sm ghost" onclick="exportCsv()">导出 CSV</button>
+    </div>
+
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th style="width:52px"></th>
+            <th data-k="name" style="width:22%">原文件名</th>
+            <th data-k="newName" style="width:24%">新文件名</th>
+            <th data-k="ts" style="width:150px">拍摄时间</th>
+            <th data-k="source" style="width:160px">时间戳来源</th>
+            <th data-k="size" style="width:82px">大小</th>
+            <th data-k="status" style="width:96px">状态</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty">
+        <div>
+          <div class="big">🗂</div>
+          <h3>还没有选择文件夹</h3>
+          <p>在左侧点「选择」挑一个相册目录，程序会自动读取每张照片、每段视频的真实拍摄时间，
+             并在右边的表格里预览改名结果 —— 你确认之前不会有任何文件被改动。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 确认弹窗 -->
+<div class="mask" id="mConfirm">
+  <div class="modal">
+    <header><h3>确认改名</h3></header>
+    <div class="body" id="confirmBody"></div>
+    <footer>
+      <button class="ghost" onclick="closeModal('mConfirm')">取消</button>
+      <button class="primary" onclick="doRename()">确认执行</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 目录浏览 -->
+<div class="mask" id="mBrowse">
+  <div class="modal">
+    <header><h3>选择文件夹</h3></header>
+    <div class="body">
+      <div class="crumbs" id="crumbs"></div>
+      <div class="dirlist" id="dirlist"></div>
+    </div>
+    <footer>
+      <button class="ghost" onclick="closeModal('mBrowse')">取消</button>
+      <button class="primary" onclick="useCurrentDir()">使用当前目录</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 撤销历史 -->
+<div class="mask" id="mHistory">
+  <div class="modal">
+    <header><h3>改名记录 · 可撤销</h3></header>
+    <div class="body"><div class="hist" id="histList"></div></div>
+    <footer><button class="ghost" onclick="revealRunlog()">打开记录文件夹</button><button class="ghost" onclick="closeModal('mHistory')">关闭</button></footer>
+  </div>
+</div>
+
+<!-- 结果 -->
+<div class="mask" id="mResult">
+  <div class="modal">
+    <header><h3 id="resultTitle">完成</h3></header>
+    <div class="body" id="resultBody"></div>
+    <footer><button class="primary" onclick="closeModal('mResult')">知道了</button></footer>
+  </div>
+</div>
+
+<!-- 说明书 -->
+<div class="mask" id="mHelp">
+  <div class="modal" style="width:min(880px,100%)">
+    <header><h3>使用说明书</h3></header>
+    <div class="body" id="helpBody"><div class="note">正在加载…</div></div>
+    <footer><button class="primary" onclick="closeModal('mHelp')">关闭</button></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const S = { info:null, job:null, rows:[], plan:[], scanTimer:null, browseCur:'', sortK:null, sortDir:1, busy:false };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, kind){
+  const t = $('toast'); t.textContent = msg;
+  t.className = 'toast show ' + (kind||'');
+  clearTimeout(t._h); t._h = setTimeout(()=> t.className='toast', 2600);
+}
+function openModal(id){ $(id).classList.add('show'); }
+function closeModal(id){ $(id).classList.remove('show'); }
+document.querySelectorAll('.mask').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('show'); }));
+
+async function api(path, opt){
+  const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opt||{}));
+  let j = null;
+  try { j = await r.json(); } catch(e){ throw new Error('服务返回异常（' + r.status + '）'); }
+  if(!j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+/* ---------------- 初始化 ---------------- */
+(async function init(){
+  try{
+    S.info = await api('/api/info');
+    const eb = S.info.exiftoolAvailable;
+    $('badges').innerHTML =
+      `<span class="badge"><i class="dot on"></i>${esc(S.info.python)}</span>` +
+      `<span class="badge"><i class="dot ${eb?'on':'off'}"></i>exiftool ${eb?'已启用':'未安装（内置解析器）'}</span>` +
+      `<span class="badge">🔒 全程本地</span>`;
+  }catch(e){
+    toast('无法连接本地服务：' + e.message, 'bad');
+  }
+  bindEvents();
+  updateFmtPreview();
+
+  // 支持 ?folder=路径 直接进入某个目录（可做成书签）
+  const qf = new URLSearchParams(location.search).get('folder');
+  if(qf){ $('folder').value = qf; startScan(); }
+})();
+
+function bindEvents(){
+  const debounce = (fn, ms) => { let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a), ms); }; };
+  $('folder').addEventListener('change', startScan);
+  $('folder').addEventListener('keydown', e => { if(e.key==='Enter') startScan(); });
+  $('recursive').addEventListener('change', startScan);
+  ['fmt','pattern','prefix','suffix','archive','archiveFmt'].forEach(id => {
+    $(id).addEventListener('input', onNamingChange);
+    $(id).addEventListener('change', onNamingChange);
+  });
+  $('fmt').addEventListener('change', () => {
+    const custom = $('fmt').value === '__custom__';
+    $('fmtCustom').style.display = custom ? 'block' : 'none';
+    if(custom){ $('fmtCustom').focus(); } else { updateFmtPreview(); }
+  });
+  $('fmtCustom').addEventListener('input', updateFmtPreview);
+  $('archive').addEventListener('change', () => {
+    $('archiveFmt').style.display = $('archive').checked ? 'block' : 'none';
+  });
+  ['fallback','useExiftool','readXmp','readJson','parseFilename','onlyMedia'].forEach(id =>
+    $(id).addEventListener('change', startScan));
+
+  $('filter').addEventListener('input', render);
+  $('filterStatus').addEventListener('change', render);
+  document.querySelectorAll('#tbl thead th[data-k]').forEach(th =>
+    th.addEventListener('click', () => sortBy(th.dataset.k)));
+}
+
+function namingOpts(){
+  let fmt = $('fmt').value;
+  if(fmt === '__custom__') fmt = $('fmtCustom').value.trim() || '%Y%m%d_%H%M%S';
+  return {
+    format: fmt, pattern: $('pattern').value,
+    prefix: $('prefix').value, suffix: $('suffix').value,
+    archive: $('archive').checked, archiveFormat: $('archiveFmt').value,
+    // false：让"无时间戳"的文件也出现在列表里（方便你核对到底哪些没读到），改名前会再过滤一次
+    onlyRenamable: false,
+  };
+}
+
+function updateFmtPreview(){
+  let fmt = $('fmt').value;
+  if(fmt === '__custom__') fmt = $('fmtCustom').value.trim() || '%Y%m%d_%H%M%S';
+  const d = new Date(2024,4,6,15,30,8);
+  const p = n => String(n).padStart(2,'0');
+  const map = {
+    '%Y':d.getFullYear(), '%m':p(d.getMonth()+1), '%d':p(d.getDate()),
+    '%H':p(d.getHours()), '%M':p(d.getMinutes()), '%S':p(d.getSeconds()),
+    '%y':String(d.getFullYear()).slice(-2), '%j':'127', '%B':'五月',
+  };
+  let out = fmt.replace(/%[YmdHMSyjB]/g, m => map[m]!==undefined ? map[m] : m);
+  $('fmtPreview').innerHTML = '预览效果：<b>' + esc(out) + '</b>　（示例时间 2024-05-06 15:30:08）';
+}
+
+const onNamingChange = (() => {
+  updateFmtPreview();
+  let h;
+  return () => { clearTimeout(h); h = setTimeout(refreshPreview, 260); };
+})();
+
+/* ---------------- 扫描 ---------------- */
+async function pickFolder(){
+  try{
+    const r = await api('/api/pick-folder', {method:'POST', body: JSON.stringify({start: $('folder').value || S.info.desktop})});
+    if(r.path){ $('folder').value = r.path; startScan(); }
+  }catch(e){ toast('选择失败：' + e.message, 'bad'); }
+}
+
+async function startScan(){
+  const folder = $('folder').value.trim();
+  if(!folder) return;
+  try{ history.replaceState(null, '', location.pathname + '?folder=' + encodeURIComponent(folder)); }catch(e){}
+  stopPolling();
+  S.rows = []; S.plan = []; S.job = null;
+  $('empty').style.display = 'grid';
+  $('empty').innerHTML = '<div><div class="big">🔍</div><h3>正在扫描…</h3><p>正在读取每个文件的时间戳，文件多时需要一点时间。</p></div>';
+  $('progLine').style.display = 'flex';
+  $('btnRename').disabled = true;
+  $('btnCancel').style.display = 'block';
+  setBusy(true);
+  try{
+    const r = await api('/api/scan', {method:'POST', body: JSON.stringify({
+      folder, recursive: $('recursive').checked,
+      useExiftool: $('useExiftool').checked, parseFilename: $('parseFilename').checked,
+      readXmp: $('readXmp').checked, readJson: $('readJson').checked,
+      onlyMedia: $('onlyMedia').checked, fallback: $('fallback').value,
+    })});
+    S.job = r.job;
+    poll();
+  }catch(e){
+    toast(e.message, 'bad');
+    $('empty').innerHTML = '<div><div class="big">⚠️</div><h3>无法扫描</h3><p>'+esc(e.message)+'</p></div>';
+    setBusy(false); $('btnCancel').style.display='none'; $('progLine').style.display='none';
+  }
+}
+
+function poll(){
+  if(!S.job) return;
+  S.scanTimer = setTimeout(async () => {
+    try{
+      const r = await api(`/api/scan/${S.job}?since=${S.rows.length}`);
+      if(r.rows && r.rows.length){
+        S.rows = S.rows.concat(r.rows);
+      }
+      const total = r.total || 0, done = r.processed || 0;
+      $('progBar').style.width = total ? (done/total*100) + '%' : '0%';
+      $('progText').textContent = done + '/' + total;
+      $('scanStage').textContent = r.stage || '';
+      $('sTotal').textContent = S.rows.length;
+      render();
+      if(r.error){ toast(r.error, 'bad'); setBusy(false); $('btnCancel').style.display='none'; return; }
+      if(r.done){
+        stopPolling();
+        $('btnCancel').style.display = 'none';
+        $('progLine').style.display = 'none';
+        $('scanStage').textContent = '';
+        setBusy(false);
+        var miss = S.rows.filter(x => !x.ts).length;
+        $('sSkip').textContent = miss;
+        if(!S.rows.length){
+          $('empty').style.display = 'grid';
+          $('empty').innerHTML = '<div><div class="big">📭</div><h3>这个目录里没有找到媒体文件</h3><p>如果文件藏在子文件夹里，请勾选「包含子文件夹」；如果想处理非照片/视频文件，请在「高级」里关掉「只扫描照片和视频」。</p></div>';
+        }
+        refreshPreview();
+        return;
+      }
+      poll();
+    }catch(e){ stopPolling(); toast('扫描中断：' + e.message, 'bad'); setBusy(false); }
+  }, 220);
+}
+function stopPolling(){ if(S.scanTimer){ clearTimeout(S.scanTimer); S.scanTimer = null; } }
+async function cancelScan(){
+  if(S.job) { try{ await api('/api/cancel', {method:'POST', body: JSON.stringify({job:S.job})}); }catch(e){} }
+  stopPolling(); setBusy(false); $('btnCancel').style.display='none'; toast('已停止扫描');
+}
+function setBusy(v){
+  S.busy = v;
+  $('btnRename').disabled = v || !S.plan.some(x => x.status === 'ok');
+  $('btnRename').textContent = v ? '处理中…' : '开始改名';
+}
+
+/* ---------------- 预览 ---------------- */
+async function refreshPreview(){
+  if(!S.job || !S.rows.length) return;
+  try{
+    const r = await api('/api/preview', {method:'POST', body: JSON.stringify({job:S.job, options: namingOpts()})});
+    S.plan = r.plan;
+    $('sRename').textContent = r.stats.rename;
+    $('sSame').textContent = r.stats.same;
+    $('sSkip').textContent = r.stats.skip;
+    $('sTotal').textContent = r.stats.total;
+    setBusy(false);
+    render();
+  }catch(e){ toast('预览失败：' + e.message, 'bad'); }
+}
+
+function srcClass(src){
+  if(!src || src === '缺失') return 'none';
+  if(src.startsWith('exiftool')) return 'exif';
+  if(src.includes('EXIF') || src.includes('eXIf')) return 'exif';
+  if(src.includes('XMP')) return 'xmp';
+  if(src.includes('内嵌') || src.includes('mvhd')) return 'qt';
+  if(src.startsWith('文件名')) return 'name';
+  if(src.startsWith('旁车')) return 'side';
+  if(src.startsWith('文件系统')) return 'fs';
+  return 'none';
+}
+function srcShort(s){
+  if(!s) return '缺失';
+  return s.replace('exiftool·','').replace('内嵌·','').replace('旁车·','旁车 ').replace('文件名·','文件名 ');
+}
+function iconOf(ext, kind){
+  if(['.mp4','.mov','.m4v','.mkv','.avi','.webm','.3gp','.mts','.m2ts','.mpg','.mpeg'].includes(ext)) return '🎬';
+  if(ext === '.gif') return '🎞';
+  return '🖼';
+}
+
+function sortBy(k){
+  if(S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = 1; }
+  document.querySelectorAll('#tbl thead th').forEach(th => th.classList.remove('s-asc','s-desc'));
+  const th = document.querySelector(`#tbl thead th[data-k="${k}"]`);
+  if(th) th.classList.add(S.sortDir > 0 ? 's-asc' : 's-desc');
+  render();
+}
+
+function filtered(){
+  const q = $('filter').value.trim().toLowerCase();
+  const st = $('filterStatus').value;
+  let rows = S.plan.slice();
+  if(st) rows = rows.filter(r => r.status === st);
+  if(q) rows = rows.filter(r =>
+    (r.name||'').toLowerCase().includes(q) ||
+    (r.newName||'').toLowerCase().includes(q) ||
+    (r.ts||'').includes(q) ||
+    (r.source||'').toLowerCase().includes(q) ||
+    (r.dir||'').toLowerCase().includes(q));
+  if(S.sortK){
+    const k = S.sortK, d = S.sortDir;
+    rows.sort((a,b) => {
+      let x = a[k], y = b[k];
+      if(k === 'status'){ const order={ok:0,same:1,skip:2}; x=order[x]||9; y=order[y]||9; }
+      if(k === 'size'){ x=a.size; y=b.size; }
+      if(x === y) return 0;
+      return (x > y ? 1 : -1) * d;
+    });
+  }
+  return rows;
+}
+
+const MAXR = 1500;
+function render(){
+  if(!S.plan.length){
+    if(S.rows.length){ $('empty').style.display='grid'; }
+    return;
+  }
+  const rows = filtered();
+  const tb = $('tbody');
+  const slice = rows.slice(0, MAXR);
+  tb.innerHTML = slice.map(r => {
+    const isImg = ['.jpg','.jpeg','.png','.webp','.gif','.heic','.heif','.bmp'].includes(r.ext);
+    const isVid = iconOf(r.ext) === '🎬';
+    const thumb = (isImg || isVid)
+      ? `<img class="thumb" loading="lazy" src="/api/thumb?path=${encodeURIComponent(r.path)}"
+           onerror="this.outerHTML='<div class=\\'thumb ph\\'>${iconOf(r.ext)}</div>'">`
+      : `<div class="thumb ph">${iconOf(r.ext)}</div>`;
+    const newCell = r.newName
+      ? `${esc(r.newName)}${r.conflict ? ` <span class="pill cf">${esc(r.conflict)}</span>` : ''}`
+      : '<span style="color:#6a6a73">—</span>';
+    const cls = r.status === 'skip' ? 'st-skip' : '';
+    return `<tr class="${cls}" data-p="${esc(r.path)}">
+      <td>${thumb}</td>
+      <td class="mono oldname">${esc(r.name)}</td>
+      <td class="mono newname">${newCell}</td>
+      <td class="mono">${esc(r.ts) || '<span style="color:#6a6a73">无</span>'}${r.duration?`<span style="color:#6a6a73"> · ${r.duration}s</span>`:''}</td>
+      <td><span class="src ${srcClass(r.source)}" title="${esc(r.source)}${r.note?'\n'+esc(r.note):''}">${esc(srcShort(r.source))}</span></td>
+      <td class="mono" style="color:#8a8a93">${esc(r.sizeText||'')}</td>
+      <td><span class="pill ${r.status}">${
+        r.status==='ok' ? '待改名' : r.status==='same' ? '无需改动' : '无时间戳'
+      }</span></td>
+    </tr>`;
+  }).join('');
+
+  $('empty').style.display = rows.length ? 'none' : 'grid';
+  if(!rows.length){
+    $('empty').innerHTML = '<div><div class="big">🔎</div><h3>没有符合筛选条件的文件</h3><p>换个关键词，或者把「状态」筛选切回「全部状态」。</p></div>';
+  }
+  document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => showDetail(tr.dataset.p));
+  });
+  if(rows.length > MAXR){
+    tb.insertAdjacentHTML('beforeend',
+      `<tr><td colspan="7" style="padding:14px;text-align:center;color:#8a8a93">
+        仅显示了前 ${MAXR} 条（共 ${rows.length} 条）。请用筛选缩小范围。</td></tr>`);
+  }
+}
+
+/* ---------------- 详情 ---------------- */
+function showDetail(path){
+  const r = S.plan.find(x => x.path === path);
+  if(!r) return;
+  const exif = r.exif && Object.keys(r.exif).length
+    ? Object.entries(r.exif).slice(0,22).filter(([k,v]) => !['SourceFile','SourceFile'].includes(k))
+        .map(([k,v]) => `<b>${esc(k)}</b><span class="mono">${esc(String(v).slice(0,120))}</span>`).join('')
+    : '<b>—</b><span style="color:#8a8a93">没有读取到内嵌元数据</span>';
+  const isImg = ['.jpg','.jpeg','.png','.webp','.gif','.bmp'].includes(r.ext);
+  const isVid = iconOf(r.ext) === '🎬';
+  let preview = '';
+  if(isImg) preview = `<img src="/api/media?path=${encodeURIComponent(r.path)}" style="max-width:100%;max-height:260px;border-radius:10px;border:1px solid #2c2c31">`;
+  else if(isVid) preview = `<video src="/api/media?path=${encodeURIComponent(r.path)}" controls style="max-width:100%;max-height:260px;border-radius:10px;border:1px solid #2c2c31"></video>`;
+  else preview = '<div style="color:#8a8a93">该格式不支持预览</div>';
+
+  $('resultTitle').textContent = '文件详情';
+  $('resultBody').innerHTML = `
+    ${preview}
+    <div class="kv">
+      <b>所在目录</b><span class="mono" style="word-break:break-all">${esc(r.dir)}</span>
+      <b>原文件名</b><span class="mono">${esc(r.name)}</span>
+      <b>新文件名</b><span class="mono">${esc(r.newName) || '—'}</span>
+      <b>拍摄时间</b><span class="mono">${esc(r.tsIso) || '未找到'}</span>
+      <b>时间戳来源</b><span>${esc(r.source)}${r.note?`<div style="color:#8a8a93;font-size:11.5px;margin-top:2px">${esc(r.note)}</div>`:''}</span>
+      <b>大小</b><span class="mono">${esc(r.sizeText)}</span>
+      ${r.duration?`<b>时长</b><span class="mono">${r.duration} 秒</span>`:''}
+    </div>
+    <div style="margin-top:16px;font-size:12px;color:#8a8a93">内嵌元数据（原始值）</div>
+    <div class="kv" style="grid-template-columns:180px 1fr">${exif}</div>`;
+  openModal('mResult');
+}
+
+/* ---------------- 改名 ---------------- */
+function askRename(){
+  const todo = S.plan.filter(x => x.status === 'ok');
+  if(!todo.length){ toast('没有需要改名的文件'); return; }
+  const opts = namingOpts();
+  const samples = todo.slice(0, 8).map(r =>
+    `<li><span class="mono" style="color:#8a8a93">${esc(r.name)}</span>
+     <span style="color:#cfa9ff">→</span>
+     <span class="mono">${esc(r.newName)}</span></li>`).join('');
+  const dirs = new Set(todo.map(r => r.targetDir));
+  const conflicts = todo.filter(r => r.conflict).length;
+  $('confirmBody').innerHTML = `
+    <div>即将在 <b>${dirs.size}</b> 个目录中重命名 <b style="color:#7fe0b3">${todo.length}</b> 个文件。</div>
+    <div class="kv">
+      <b>命名格式</b><span class="mono">${esc(opts.format)}</span>
+      <b>命名方式</b><span>${esc(opts.pattern)}</span>
+      <b>归档</b><span>${opts.archive ? '开启 · <span class="mono">'+esc(opts.archiveFormat)+'</span>' : '关闭（同目录内重命名）'}</span>
+      <b>重名处理</b><span>${conflicts ? `<b style="color:#f2d193">${conflicts} 个</b> 会自动加 _1 _2 后缀` : '没有冲突'}</span>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:#8a8a93">前几个例子</div>
+    <ul>${samples}</ul>
+    ${todo.length > 8 ? `<div style="color:#8a8a93;font-size:12px;margin-top:6px">…还有 ${todo.length - 8} 个</div>` : ''}
+    <div class="note warn" style="margin-top:16px">
+      改名是<b>不可逆操作</b>（除非撤销）。执行后会自动保存一份撤销记录，可在顶部「撤销」里一键还原。
+    </div>`;
+  openModal('mConfirm');
+}
+
+async function doRename(){
+  closeModal('mConfirm');
+  if(!S.job) return;
+  setBusy(true); $('btnRename').disabled = true; $('btnRename').textContent = '改名中…';
+  try{
+    const r = await api('/api/rename', {method:'POST', body: JSON.stringify({job:S.job, options: namingOpts()})});
+    $('resultTitle').textContent = '改名完成';
+    $('resultBody').innerHTML = `
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat ok"><div class="v">${r.renamed}</div><div class="k">成功改名</div></div>
+        <div class="stat"><div class="v">${r.skipped}</div><div class="k">跳过</div></div>
+        <div class="stat warn"><div class="v">${r.errors}</div><div class="k">失败</div></div>
+      </div>
+      ${r.log ? `<div class="note" style="margin-top:14px">撤销记录已保存：<b class="mono">${esc(r.log)}</b></div>` : ''}
+      ${r.errs && r.errs.length ? `<div class="note warn" style="margin-top:10px"><b>失败明细</b><ul>${
+        r.errs.map(e => '<li>'+esc(e)+'</li>').join('')}</ul></div>` : ''}
+      <div style="margin-top:14px;color:#8a8a93;font-size:12.5px">
+        顶部「撤销」可以随时还原这次改名。</div>`;
+    openModal('mResult');
+    await startScan();
+  }catch(e){
+    toast('改名失败：' + e.message, 'bad');
+    setBusy(false);
+  }
+}
+
+/* ---------------- 撤销 ---------------- */
+function revealRunlog(){
+  const p = (S.info && S.info.runlog) || '';
+  if(!p) return;
+  api('/api/reveal', {method:'POST', body: JSON.stringify({path:p})}).catch(e => toast(e.message,'bad'));
+}
+
+async function openHistory(){
+  try{
+    const r = await api('/api/history');
+    if(!r.items.length){
+      $('histList').innerHTML = '<div class="note">还没有任何改名记录。</div>';
+    } else {
+      $('histList').innerHTML = r.items.map((it, i) => `
+        <div class="it">
+          <div class="t">
+            <div>${esc(it.time)}　·　${it.renamed} 个文件</div>
+            <div>${esc(it.folder)}</div>
+          </div>
+          <button class="sm ${i===0?'primary':''}" onclick="doUndo('${esc(it.file)}')">
+            ${i===0 ? '撤销这次' : '撤销'}
+          </button>
+        </div>`).join('');
+    }
+    openModal('mHistory');
+  }catch(e){ toast('读取记录失败：' + e.message, 'bad'); }
+}
+
+async function doUndo(file){
+  if(!confirm('确定要撤销这次改名、把文件名还原回去吗？')) return;
+  try{
+    const r = await api('/api/undo', {method:'POST', body: JSON.stringify({file})});
+    closeModal('mHistory');
+    $('resultTitle').textContent = '撤销完成';
+    $('resultBody').innerHTML = `
+      <div class="stats" style="grid-template-columns:repeat(2,1fr)">
+        <div class="stat ok"><div class="v">${r.undone}</div><div class="k">已还原</div></div>
+        <div class="stat warn"><div class="v">${r.failed}</div><div class="k">未能还原</div></div>
+      </div>
+      ${r.errs && r.errs.length ? `<div class="note warn" style="margin-top:12px"><b>未还原的原因</b><ul>${
+        r.errs.map(e => '<li>'+esc(e)+'</li>').join('')}</ul></div>` : ''}`;
+    openModal('mResult');
+    if($('folder').value.trim()) startScan();
+  }catch(e){ toast('撤销失败：' + e.message, 'bad'); }
+}
+
+/* ---------------- 目录浏览 ---------------- */
+async function openBrowse(){
+  await loadDir($('folder').value.trim() || S.info.home);
+  openModal('mBrowse');
+}
+async function loadDir(p){
+  try{
+    const r = await api('/api/browse?path=' + encodeURIComponent(p));
+    S.browseCur = r.current;
+    $('crumbs').innerHTML =
+      r.books.map(b => `<button class="link sm" onclick="loadDir('${esc(b.path)}')">${esc(b.name)}</button>`).join('<span>·</span>')
+      + `<span style="margin-left:8px;color:#f2f2f4" class="mono">${esc(r.current)}</span>`;
+    $('dirlist').innerHTML =
+      (r.parent ? `<div class="d" onclick="loadDir('${esc(r.parent)}')"><span class="ic">↩</span>返回上级</div>` : '')
+      + (r.dirs.length ? r.dirs.map(d =>
+          `<div class="d" onclick="loadDir('${esc(d.path)}')">
+             <span class="ic">📁</span>${esc(d.name)}
+             <span class="c">${d.count >= 0 ? d.count + ' 项' : ''}</span></div>`).join('')
+        : '<div class="d" style="cursor:default;color:#8a8a93">这个目录下没有子文件夹</div>');
+  }catch(e){ toast('浏览失败：' + e.message, 'bad'); }
+}
+function useCurrentDir(){
+  if(S.browseCur){ $('folder').value = S.browseCur; closeModal('mBrowse'); startScan(); }
+}
+function reveal(){
+  const p = $('folder').value.trim();
+  if(!p) return;
+  api('/api/reveal', {method:'POST', body: JSON.stringify({path:p})}).catch(e => toast(e.message,'bad'));
+}
+
+/* ---------------- CSV ---------------- */
+function exportCsv(){
+  const rows = filtered();
+  if(!rows.length){ toast('没有可导出的内容'); return; }
+  const head = ['原文件名','新文件名','拍摄时间','时间戳来源','所在目录','大小','状态','冲突'];
+  const body = rows.map(r => [r.name, r.newName, r.tsIso, r.source, r.dir, r.sizeText,
+    r.status === 'ok' ? '待改名' : r.status === 'same' ? '无需改动' : '无时间戳', r.conflict]);
+  const csv = '\ufeff' + [head].concat(body)
+    .map(a => a.map(v => `"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '改名预览_' + new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') + '.csv';
+  a.click();
+  toast('已导出 ' + rows.length + ' 行');
+}
+
+/* ---------------- 说明书内嵌 ---------------- */
+function openHelp(){
+  openModal('mHelp');
+  if($('helpBody').dataset.loaded) return;
+  $('helpBody').innerHTML = `
+    <h3 style="color:#f2f2f4;font-size:15px;margin-bottom:10px">ShutterSort 是干什么的</h3>
+    <p>iPhone 拍的照片和视频，导出到电脑后名字永远是一串流水号 ——
+       <span class="mono">IMG_8734.HEIC</span>、<span class="mono">IMG_8734.MOV</span>、
+       <span class="mono">IMG_8741.HEIC</span>。名字里没有时间，几百张堆在一起就是一团乱麻。</p>
+    <p>它把文件名换成<b>真实拍摄时间</b>（读的是文件内嵌的 EXIF / 视频容器元数据），
+       让整个文件夹自动按时间排序，跟手机相册里看到的一致。</p>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">30 秒上手</h3>
+    <div class="note">
+      ① 左边点「选择」挑一个文件夹 →　② 右边出现预览（<b>此时文件还没被改</b>）→　③ 点「开始改名」→　④ 确认。
+    </div>
+    <div class="note" style="margin-top:10px">
+      <b>第一次用？</b>建议先把要整理的文件夹<b>复制一份副本</b>出来试手 ——
+      确认预览结果符合预期了，再去动原件。改坏了也无所谓，副本删掉重来即可。
+    </div>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">时间是从哪儿来的</h3>
+    <p>程序按固定优先级依次尝试，<b>第一个成功的就是结果</b>。表格里的彩色标签就是告诉你用了哪一层：</p>
+    <div class="kv" style="grid-template-columns:200px 1fr">
+      <b>exiftool·…</b><span>系统 exiftool 读出来的标准元数据（装了就用，覆盖度最高）</span>
+      <b>内嵌·EXIF</b><span>照片内嵌的 EXIF 拍摄时间，最准确</span>
+      <b>内嵌·mvhd / mdhd</b><span>视频容器自带的创建时间</span>
+      <b>内嵌·XMP</b><span>Adobe / 修图软件写入的 XMP 时间</span>
+      <b>内嵌·PNG tIME</b><span>PNG 图片内的时间块</span>
+      <b>旁车 JSON</b><span>Google Takeout 导出时附带的 .json</span>
+      <b>旁车 XMP</b><span>同名 .xmp 文件</span>
+      <b>文件名 …</b><span>从文件名里解析，如 DJI_20251108_164116_0042</span>
+      <b>文件系统 …</b><span>文件本身的创建/修改时间（需要你手动开启兜底）</span>
+    </div>
+    <div class="note warn" style="margin-top:12px">
+      微信、QQ、WhatsApp 转发过的图片视频，元数据常被剥掉。这时要么靠文件名，要么开「文件时间兜底」——
+      但兜底拿到的是<b>接收时间</b>，不一定是拍摄时间，自己判断。
+    </div>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">命名规则怎么填</h3>
+    <div class="kv" style="grid-template-columns:200px 1fr">
+      <b>日期格式</b><span class="mono">%Y%m%d_%H%M%S</span> → 20240506_153008。下拉里没想要的可以选「自定义」</span>
+      <b>命名方式</b><span>决定日期和原文件名怎么拼</span>
+      <b>前缀 / 后缀</b><span>默认前缀 <span class="mono">IMG_</span>，所以结果是 <span class="mono">IMG_20240506_153008.jpg</span>；改成 <span class="mono">旅行_</span> 之类可方便按事件分组</span>
+      <b>按日期归档</b><span>勾上后会移动到 <span class="mono">2024/2024-05</span> 这类子文件夹里</span>
+    </div>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">安全吗</h3>
+    <ul style="margin-left:18px;line-height:1.9">
+      <li>改名是<b>原地重命名</b>，不复制、不压缩、不动画质</li>
+      <li>同名冲突自动加 <span class="mono">_1</span> <span class="mono">_2</span>，不会覆盖任何文件</li>
+      <li>每次改名自动生成撤销记录，顶部「撤销」可一键还原（跨会话有效）</li>
+      <li>服务只监听 127.0.0.1，<b>不联网、不上传任何数据</b></li>
+      <li>正式动手前先用「导出 CSV」存档一份原始文件名，是最保险的做法</li>
+    </ul>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">常见问题</h3>
+    <p><b>为什么有些文件显示「无时间戳」？</b><br>
+       这类文件的元数据被处理掉了（聊天软件转发、截图工具、在线编辑器），
+       可以在「时间戳来源」里开文件时间兜底，或直接跳过它们。</p>
+    <p style="margin-top:10px"><b>时间差了几小时？</b><br>
+       相机时区设置错误留下的历史遗留问题，EXIF 里的时间本身就没有时区。
+       本工具优先使用带时区的时间源（内嵌 creationdate / 带 OffsetTime 的 EXIF），会自动换算成本机时间。</p>
+    <p style="margin-top:10px"><b>会影响视频播放吗？</b><br>
+       不会。只是改文件名，文件内容一个字节都没动。</p>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">小技巧</h3>
+    <p><b>把常用目录做成书签</b><br>
+      地址栏里的地址带了 <span class="mono">?folder=目录路径</span>，直接存成书签，
+      下次点开就自动扫描那个目录，省掉选文件夹这一步。</p>
+    <p style="margin-top:10px"><b>分文件夹编号 · 安全提示</b><br>
+      左侧「1 选择文件夹」那一栏支持勾选<b>包含子文件夹</b>。处理手机导出的相册时建议先勾上，
+      一次性把所有年份都整理掉；如果只想处理某一批，就取消勾选。</p>`;
+  $('helpBody').dataset.loaded = '1';
+}
+</script>
+</body>
+</html>
