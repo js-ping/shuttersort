@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Tests](https://img.shields.io/badge/self--test-55%20pass-brightgreen.svg)](#development--testing)
+[![Tests](https://img.shields.io/badge/self--test-60%20pass-brightgreen.svg)](#development--testing)
 
 [中文说明](README.md) · English
 
@@ -42,6 +42,7 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 ## Highlights
 
 - **Auditable timestamps** — every file is tagged with *where* its time came from. No black boxes.
+- **Pick your scope** — scan a whole folder, or hand-pick a few files (native multi-select dialog or drag & drop). Checkbox per row on top of that.
 - **Zero dependencies** — pure Python standard library. No `pip install`, no venv, no config.
 - **Self-contained parsers** — TIFF/EXIF, XMP, PNG chunks, WebP and ISOBMFF (MP4/MOV/HEIC) are all parsed in-house, so nothing breaks when external tools are missing.
 - **Deterministic & idempotent** — re-running on an already-renamed folder reports "no change" instead of appending `_1`.
@@ -55,7 +56,18 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 
 ![Main window](screenshots/01-main.png)
 
-**You decide which files get touched** — every row has a checkbox; unchecked files stay exactly as they are.
+**You decide the scope** — scan a whole folder, or name a handful of files.
+
+- The first card has **Choose folder** and **Choose files** side by side. The file picker
+  is the OS-native dialog: hold ⌘ / Ctrl to pick several, across different folders if you like
+- In file mode the path box clears and a `N files selected · across M folders` pill appears,
+  with a **Clear** button to start over. Extension filtering is skipped on purpose —
+  a file you hand-picked yourself should show up in the list
+- You can also **drop files straight onto the window**; drop again to append. If you're in
+  folder mode and the dropped files already live in that folder, it degrades to
+  "check these rows" instead of changing the scope
+
+**You also decide which rows get touched** — every row has a checkbox; unchecked files stay exactly as they are.
 
 - Everything is checked right after a scan, so "just rename all" still works in one click
 - The toolbar shows `N of M selected`, with **Select all / Clear / Invert**.
@@ -158,9 +170,11 @@ no `pip install`, no venv, no config file.
 | `ffmpeg` | Video thumbnails (and a HEIC fallback) | Shows a 🎬 icon; renaming unaffected |
 | `magick` (ImageMagick) | HEIC thumbnails on Windows / Linux | Placeholder icon; renaming unaffected |
 
-> The **folder picker** uses whatever the OS already provides — `osascript` on macOS,
-> PowerShell + .NET on Windows, `zenity`/`kdialog` on Linux. When none is available the UI
-> falls back to typing a path manually; nothing else changes.
+> The **folder and file pickers** use whatever the OS already provides — `osascript` on macOS,
+> PowerShell + .NET (`OpenFileDialog { Multiselect = $true }`, no mojibake on non-ASCII paths)
+> on Windows, `zenity`/`kdialog` on Linux. Inside the packaged app/exe they go through
+> pywebview's native dialogs. When none is available the UI falls back to typing a path or
+> dropping files; nothing else changes.
 
 ## Timestamp precedence
 
@@ -214,7 +228,7 @@ python tests\selftest.py        # Windows
 
 Or just double-click `tests/run_tests.command` (macOS/Linux) / `tests/run_tests.bat` (Windows).
 
-55 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
+60 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).
 Everything runs in a temp directory and cleans itself up.
 
@@ -229,7 +243,7 @@ ShutterSort/
 │   ├── server.py              ← local server + all endpoints
 │   ├── app_main.py            ← native-window entry point (.app / .exe)
 │   └── static/index.html      ← UI (single file, no build step)
-├── tests/selftest.py          ← 55 regression checks
+├── tests/selftest.py          ← 60 regression checks
 ├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
 │   ├── build_app.command      ← builds the macOS .app + dmg + zip
 │   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the dmg/zip

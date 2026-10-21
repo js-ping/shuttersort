@@ -159,6 +159,46 @@ def pick_folder_windows(start: str = "") -> str:
     return ""
 
 
+def pick_files_windows(start: str = "") -> List[str]:
+    """Windows 原生「选择文件」对话框（可多选）。
+
+    和选文件夹一样，脚本走 base64(UTF-16LE) + -EncodedCommand，
+    避免中文路径被控制台代码页转坏。返回绝对路径列表。
+    """
+    ps = (shutil.which("powershell") or shutil.which("powershell.exe")
+          or shutil.which("pwsh") or shutil.which("pwsh.exe"))
+    if not ps:
+        return []
+    probe = ""
+    try:
+        if start and os.path.isdir(start):
+            probe = start
+    except Exception:
+        probe = ""
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms | Out-Null\n"
+        "$dlg = New-Object System.Windows.Forms.OpenFileDialog\n"
+        "$dlg.Title = '选择要处理的照片或视频'\n"
+        "$dlg.Multiselect = $true\n"
+        "$dlg.Filter = '媒体文件|*.jpg;*.jpeg;*.png;*.heic;*.heif;*.webp;*.gif;*.bmp;*.tif;*.tiff;"
+        "*.mp4;*.mov;*.m4v;*.avi;*.mkv;*.3gp|所有文件|*.*'\n"
+        + (("$dlg.InitialDirectory = '%s'\n" % probe.replace("'", "''")) if probe else "")
+        + "if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
+          "{ $dlg.FileNames | ForEach-Object { [Console]::Out.WriteLine($_) } }\n"
+    )
+    enc = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        r = subprocess.run(
+            [ps, "-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", enc],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600, check=False,
+        )
+        if r.returncode == 0:
+            return [x.strip() for x in r.stdout.decode("utf-8", "replace").splitlines() if x.strip()]
+    except Exception as e:
+        log("Windows 选文件失败：%s" % e)
+    return []
+
+
 def _bookmarks() -> List[Path]:
     """界面上「快速跳转」的那一排位置（不存在的不显示）。"""
     home = Path.home()
@@ -214,11 +254,13 @@ from media_time import (  # noqa: E402
 
 APP_TITLE = "拍摄时间改名器"
 APP_NAME_EN = "ShutterSort"
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 # 由 app_main.py 注入：App 模式下用原生窗口关闭程序 / 弹系统选择框
 QUIT_HOOK: Optional[Callable[[], None]] = None
 PICK_FOLDER_HOOK: Optional[Callable[[str], str]] = None
+# 选文件（可多选），返回绝对路径列表；空列表表示用户取消
+PICK_FILES_HOOK: Optional[Callable[[str], List[str]]] = None
 
 EXIFTOOL = ExifTool()
 THUMB_DIR = Path(tempfile.gettempdir()) / "mt_renamer_thumbs"
@@ -265,7 +307,21 @@ def _run_scan(job: Dict[str, Any]) -> None:
     )
 
     try:
-        files = list(_iter_files(folder, job["recursive"], job["only_media"]))
+        # 两种来源：扫一个文件夹，或者只是用户点名的那几个文件。
+        # 点名模式下不再按扩展名过滤 —— 用户自己挑的，就该出现在列表里；
+        # 真的没有时间戳的会以「无时间戳」出现，比"选了却没反应"清楚。
+        picked = job.get("files") or []
+        if picked:
+            files = []
+            for raw in picked:
+                p = Path(raw)
+                try:
+                    if p.is_file() and not p.name.startswith("."):
+                        files.append(p)
+                except OSError:
+                    continue
+        else:
+            files = list(_iter_files(folder, job["recursive"], job["only_media"]))
     except Exception as e:
         job["error"] = f"读取目录失败：{e}"
         job["done"] = True
@@ -514,6 +570,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/pick-folder":
                 return self._pick_folder()
+            if path == "/api/pick-files":
+                return self._pick_files()
             if path == "/api/scan":
                 return self._scan_start()
             if path == "/api/cancel":
@@ -631,20 +689,113 @@ class Handler(BaseHTTPRequestHandler):
                     return self._err(f"调用系统选择框失败：{e}")
         return self._json({"ok": True, "path": "", "supported": False})
 
+    def _pick_files(self):
+        """弹出「选择文件」（可多选），返回绝对路径数组。
+
+        用户取消 → 空数组。系统不支持 → supported: false，前端提示改用拖拽/手输。
+        """
+        body = self._body()
+        start = body.get("start") or str(Path.home())
+
+        if PICK_FILES_HOOK is not None:
+            try:
+                got = PICK_FILES_HOOK(start)
+                return self._json({"ok": True, "paths": list(got or []), "supported": True})
+            except Exception as e:
+                log("原生选文件失败：%s" % e)
+
+        if sys.platform == "darwin":
+            script = (
+                'set theFiles to choose file with prompt "选择要处理的照片或视频" '
+                'with multiple selections allowed\n'
+                'set out to ""\n'
+                'repeat with f in theFiles\n'
+                '  set out to out & (POSIX path of f) & linefeed\n'
+                'end repeat\n'
+                'return out'
+            )
+            try:
+                p = subprocess.run(["osascript", "-e", script], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, timeout=600, check=False)
+                if p.returncode != 0:
+                    return self._json({"ok": True, "paths": [], "supported": True})
+                lines = [x.strip() for x in p.stdout.decode("utf-8", "replace").splitlines()]
+                return self._json({"ok": True, "supported": True,
+                                   "paths": [x for x in lines if x]})
+            except Exception as e:
+                return self._err(f"调用系统选择框失败：{e}")
+
+        if sys.platform.startswith("win"):
+            try:
+                return self._json({"ok": True, "supported": True,
+                                   "paths": pick_files_windows(start)})
+            except Exception as e:
+                return self._err(f"调用系统选择框失败：{e}")
+
+        if shutil.which("zenity"):
+            try:
+                p = subprocess.run(
+                    ["zenity", "--file-selection", "--multiple",
+                     "--separator=\n", "--title=选择要处理的文件"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600, check=False)
+                if p.returncode == 0:
+                    lines = [x.strip() for x in p.stdout.decode("utf-8", "replace").splitlines()]
+                    return self._json({"ok": True, "supported": True,
+                                       "paths": [x for x in lines if x]})
+                return self._json({"ok": True, "paths": [], "supported": True})
+            except Exception as e:
+                return self._err(f"调用系统选择框失败：{e}")
+        return self._json({"ok": True, "paths": [], "supported": False})
+
     # ---------- 扫描 ----------
     def _scan_start(self):
-        body = self._body()
-        folder = (body.get("folder") or "").strip()
-        if not folder:
-            return self._err("请先选择文件夹")
-        fp = Path(folder).expanduser()
-        if not fp.exists() or not fp.is_dir():
-            return self._err(f"目录不存在：{fp}")
+        """开始扫描。两种来源：
 
-        job_id = hashlib.md5(f"{fp}{time.time()}".encode()).hexdigest()[:12]
+        - 传 `folder`：扫这个目录（可递归），老行为
+        - 传 `files`：只处理点名的这些文件，来自「选择文件」或拖拽
+        """
+        body = self._body()
+        picked = body.get("files")
+
+        if picked is not None:
+            if not isinstance(picked, list):
+                return self._err("files 必须是数组")
+            paths: List[str] = []
+            for raw in picked:
+                try:
+                    p = Path(str(raw)).expanduser()
+                    if p.is_file():
+                        paths.append(str(p.resolve()))
+                except (OSError, ValueError):
+                    continue
+            paths = list(dict.fromkeys(paths))          # 拖拽时可能重复
+            if not paths:
+                return self._err("这些路径里没有可读取的文件（如果拖进来的是文件夹，"
+                                 "请用「选择文件夹」）")
+            if len(paths) == 1:
+                folder = str(Path(paths[0]).parent)
+            else:
+                try:
+                    folder = os.path.commonpath([str(Path(x).parent) for x in paths])
+                except ValueError:                      # Windows 跨盘符，没有公共父目录
+                    folder = ""
+            seed = "|".join(paths)
+        else:
+            folder = (body.get("folder") or "").strip()
+            if not folder:
+                return self._err("请先选择文件夹")
+            fp = Path(folder).expanduser()
+            if not fp.exists() or not fp.is_dir():
+                return self._err(f"目录不存在：{fp}")
+            folder = str(fp)
+            paths = []
+            seed = folder
+
+        job_id = hashlib.md5(f"{seed}{time.time()}".encode()).hexdigest()[:12]
         job = {
             "id": job_id,
-            "folder": str(fp),
+            "folder": folder,
+            "files": paths,
             "recursive": bool(body.get("recursive", True)),
             "only_media": bool(body.get("onlyMedia", True)),
             "use_exiftool": bool(body.get("useExiftool", True)),
@@ -682,6 +833,8 @@ class Handler(BaseHTTPRequestHandler):
             "ok": True,
             "job": job_id,
             "folder": job["folder"],
+            "mode": "files" if job.get("files") else "folder",
+            "fileCount": len(job.get("files") or []),
             "total": job["total"],
             "processed": job["processed"],
             "stage": job["stage"],

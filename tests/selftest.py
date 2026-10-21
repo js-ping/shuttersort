@@ -422,6 +422,62 @@ def test_http(root: Path) -> None:
               un2.get("ok") and un2["undone"] == 2,
               f"undone={un2.get('undone')}")
 
+        # ---- 按文件列表扫描（对应界面上的「选择文件」和拖拽导入）----
+        picked_two = [str(root / "photo_exif.jpg"), str(root / "no_meta_at_all.jpg"),
+                      str(root / "photo_exif.jpg")]          # 故意重复一个
+        scan_f = http(url_base + "/api/scan", {
+            "files": picked_two, "useExiftool": False, "parseFilename": True,
+            "readXmp": True, "readJson": True, "fallback": "skip",
+        })
+        job_f = scan_f.get("job")
+        check("按文件扫描：建任务", bool(job_f), str(scan_f)[:80])
+        rows_f, since_f = [], 0
+        t1 = time.time()
+        while time.time() - t1 < 15:
+            st_f = http(f"{url_base}/api/scan/{job_f}?since={since_f}")
+            rows_f += st_f.get("rows", [])
+            since_f = st_f.get("nextIndex", since_f)
+            if st_f.get("done"):
+                break
+            time.sleep(0.15)
+        check("按文件扫描：只处理点名的（重复路径已去重）", len(rows_f) == 2,
+              f"{len(rows_f)} 行 → {[r['name'] for r in rows_f]}")
+
+        # 跨目录：两个文件分别在 root 和 root/sub，folder 应取公共父目录
+        scan_x = http(url_base + "/api/scan", {
+            "files": [str(root / "photo_exif.jpg"),
+                      str(root / "sub" / "IMG_20200101000000_0001.jpg")],
+            "useExiftool": False, "fallback": "skip",
+        })
+        st_x = http(f"{url_base}/api/scan/{scan_x['job']}")
+        check("按文件扫描：跨目录取公共父目录",
+              st_x.get("mode") == "files" and Path(st_x.get("folder", "")).name == root.name,
+              f"folder={st_x.get('folder')} mode={st_x.get('mode')}")
+
+        # 夹带文件夹路径和不存在的路径 → 忽略掉，不报错
+        scan_m = http(url_base + "/api/scan", {
+            "files": [str(root), str(root / "nope.jpg"), str(root / "shot.png")],
+            "useExiftool": False, "fallback": "skip",
+        })
+        rows_m, since_m = [], 0
+        t2 = time.time()
+        while time.time() - t2 < 15:
+            st_m = http(f"{url_base}/api/scan/{scan_m['job']}?since={since_m}")
+            rows_m += st_m.get("rows", [])
+            since_m = st_m.get("nextIndex", since_m)
+            if st_m.get("done"):
+                break
+            time.sleep(0.15)
+        check("按文件扫描：文件夹/不存在的路径被忽略", len(rows_m) == 1,
+              f"{[r['name'] for r in rows_m]}")
+
+        # 全是无效路径 → 明确报错，而不是给一个空列表让人以为"这批文件没问题"
+        try:
+            http(url_base + "/api/scan", {"files": [str(root), str(root / "nope.jpg")]})
+            check("按文件扫描：全是无效路径时报错", False, "居然没报错")
+        except urllib.error.HTTPError as e:
+            check("按文件扫描：全是无效路径时报错", e.code == 400, f"code={e.code}")
+
         # 归档模式
         arch = http(url_base + "/api/preview", {"job": job2, "options": dict(opts, archive=True,
                                                                             archiveFormat="%Y/%Y-%m")})

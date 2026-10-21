@@ -75,22 +75,15 @@ button.danger:hover:not(:disabled){background:#4a2828}
 
 /* ---------- 布局 ---------- */
 main{flex:1;display:grid;grid-template-columns:376px 1fr;overflow:hidden}
-aside{border-right:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;background:#17171a}
+aside{border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column;background:#17171a}
+.aside-scroll{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 section.stage{display:flex;flex-direction:column;overflow:hidden;padding:16px 18px;gap:12px}
 
-/* 执行区：贴住左栏底部，滚到任何位置都看得见。
-   以前它在第 4 张卡里，配着配着就滚出视野了，得往回找。 */
+/* 执行区：实心底栏，和上面的滚动区是两个独立区块。
+   互不重叠 —— 所以既不用 sticky，也不需要用渐变去遮住滚上来的内容。 */
 .dock{
-  position:sticky;bottom:-16px;margin:auto 0 -16px;
-  padding:16px 0 16px;background:#17171a;z-index:6;
-  /* 不用 border-top：一条横线会把下面的卡片切成两截，看着像坏了。
-     上面留一段背景色渐隐 + 阴影，滚动时自然浮起。 */
-  box-shadow:0 -16px 16px -12px rgba(0,0,0,.75);
-}
-/* 上方 22px 渐变，让滚上来的卡片内容是「渐隐消失」而不是被一刀切断 */
-.dock::before{
-  content:"";position:absolute;left:0;right:0;top:-22px;height:22px;pointer-events:none;
-  background:linear-gradient(180deg, rgba(23,23,26,0), #17171a);
+  flex:none;padding:12px 16px 13px;background:#1c1c21;
+  border-top:1px solid var(--line2);
 }
 .dock-info{font-size:12px;color:var(--fg3);margin-bottom:9px;
   display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
@@ -99,6 +92,12 @@ section.stage{display:flex;flex-direction:column;overflow:hidden;padding:16px 18
 .dock .btnbar{display:flex;gap:8px}
 .dock .btnbar .primary{flex:1}
 .dock-note{font-size:10.5px;color:#6a6a73;margin-top:9px;line-height:1.6}
+
+/* 「已选 N 个文件」的提示条（文件模式） */
+.picknote{display:flex;align-items:center;gap:8px;margin-top:9px;padding:6px 8px;
+  border-radius:var(--radius-sm);background:rgba(207,169,255,.08);
+  border:1px solid rgba(207,169,255,.2);font-size:11.5px;color:#d3b8f7}
+.picknote span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
 .card>h2{font-size:12px;font-weight:700;color:var(--fg2);letter-spacing:.6px;margin-bottom:12px;
@@ -270,7 +269,7 @@ details.adv summary:hover{color:var(--accent)}
 @media (max-width:1080px){
   main{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   aside{max-height:44vh;border-right:none;border-bottom:1px solid var(--line)}
-  .dock{padding:10px 0 12px}
+  .dock{padding:9px 16px 10px}
   .dock-note{display:none}
 }
 </style>
@@ -293,18 +292,28 @@ details.adv summary:hover{color:var(--accent)}
 
 <main>
   <aside>
-    <!-- 1 选择文件夹 -->
+    <!-- 配置项在独立的滚动区里，执行区是下面那块实心底栏 ——
+         两块钱不重叠，所以既不会把按钮滚出视野，也不需要渐变遮罩 -->
+    <div class="aside-scroll">
+    <!-- 1 选择范围：文件夹 or 点名的几个文件 -->
     <div class="card">
-      <h2><span class="n">1</span>选择文件夹<span class="r" id="scanStage"></span></h2>
+      <h2><span class="n">1</span>选择范围<span class="r" id="scanStage"></span></h2>
       <div class="row">
-        <input type="text" id="folder" placeholder="点击右侧「选择」或直接粘贴路径">
-        <button class="sm" onclick="pickFolder()">选择</button>
+        <input type="text" id="folder" placeholder="选文件夹、选文件，或直接粘贴路径">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="sm" style="flex:1" onclick="pickFolder()">选择文件夹</button>
+        <button class="sm" style="flex:1" onclick="pickFiles()">选择文件</button>
       </div>
       <div class="row" style="margin-top:8px">
         <button class="sm ghost" style="flex:1" onclick="openBrowse()">浏览目录</button>
-        <button class="sm ghost" style="flex:1" onclick="reveal()">在访达中打开</button>
+        <button class="sm ghost" style="flex:1" onclick="reveal()">打开所在位置</button>
       </div>
-      <label class="chk" style="margin-top:6px">
+      <div class="picknote" id="pickNote" style="display:none">
+        <span id="pickNoteText"></span>
+        <button class="sm ghost" onclick="clearPickedFiles()">清空</button>
+      </div>
+      <label class="chk" id="recursiveWrap" style="margin-top:6px">
         <input type="checkbox" id="recursive" checked>
         <span>包含子文件夹<small>递归扫描所有下级目录</small></span>
       </label>
@@ -374,10 +383,11 @@ details.adv summary:hover{color:var(--accent)}
       </details>
     </div>
 
-    <!-- 执行区挪到 aside 末尾，用 CSS 贴底固定（见 .dock），
-         配置项再多也不会把按钮挤到看不见的地方 -->
+    </div><!-- /aside-scroll -->
+
+    <!-- 执行区：实心底栏，跟上面的滚动区互不重叠 -->
     <div class="dock">
-      <div class="dock-info" id="dockInfo">先选一个文件夹</div>
+      <div class="dock-info" id="dockInfo">先选文件夹或文件</div>
       <div class="btnbar">
         <button class="primary" id="btnRename" onclick="askRename()" disabled>开始改名</button>
         <button id="btnCancel" onclick="cancelScan()" style="display:none">停止</button>
@@ -412,7 +422,7 @@ details.adv summary:hover{color:var(--accent)}
       <button class="sm ghost" onclick="selectAllFiltered(false)">清空</button>
       <button class="sm ghost" onclick="invertSelection()">反选</button>
       <span class="sep"></span>
-      <span style="color:#6f6f78">把文件从访达拖进窗口，可直接定位并选中</span>
+      <span style="color:#6f6f78">拖文件进窗口：在列表里就选中，不在就加进来</span>
     </div>
 
     <div class="tablewrap">
@@ -434,9 +444,10 @@ details.adv summary:hover{color:var(--accent)}
       <div class="empty" id="empty">
         <div>
           <div class="big">🗂</div>
-          <h3>还没有选择文件夹</h3>
-          <p>在左侧点「选择」挑一个相册目录，程序会自动读取每张照片、每段视频的真实拍摄时间，
-             并在右边的表格里预览改名结果 —— 你确认之前不会有任何文件被改动。</p>
+          <h3>还没有选择要处理的文件</h3>
+          <p>在左侧点「选择文件夹」挑一个相册目录，或者用「选择文件」直接点名几个文件 ——
+             程序会读取每张照片、每段视频的真实拍摄时间，并在右边预览改名结果。
+             你确认之前不会有任何文件被改动。</p>
         </div>
       </div>
     </div>
@@ -513,6 +524,7 @@ details.adv summary:hover{color:var(--accent)}
 'use strict';
 const S = { info:null, job:null, rows:[], plan:[],
             sel:new Set(), known:new Set(),          // 勾选状态 / 已经见过的待改名路径
+            mode:'folder', picked:[],                // 处理范围：整个文件夹 / 点名的几个文件
             scanTimer:null, browseCur:'', sortK:null, sortDir:1, busy:false };
 
 const $ = id => document.getElementById(id);
@@ -549,15 +561,20 @@ async function api(path, opt){
   }
   bindEvents();
   updateFmtPreview();
+  S.emptyIdle = $('empty').innerHTML;      // 清空选择时用它还原空状态
 
   // 支持 ?folder=路径 直接进入某个目录（可做成书签）
   const qf = new URLSearchParams(location.search).get('folder');
-  if(qf){ $('folder').value = qf; startScan(); }
+  if(qf){ S.mode = 'folder'; $('folder').value = qf; startScan(); }
 })();
 
 function bindEvents(){
   const debounce = (fn, ms) => { let h; return (...a)=>{ clearTimeout(h); h=setTimeout(()=>fn(...a), ms); }; };
-  $('folder').addEventListener('change', startScan);
+  // 手动往输入框里粘路径 = 回到文件夹模式
+  $('folder').addEventListener('change', () => {
+    if($('folder').value.trim() && S.mode === 'files'){ S.mode = 'folder'; S.picked = []; updatePickNote(); }
+    startScan();
+  });
   $('folder').addEventListener('keydown', e => { if(e.key==='Enter') startScan(); });
   $('recursive').addEventListener('change', startScan);
   ['fmt','pattern','prefix','suffix','archive','archiveFmt'].forEach(id => {
@@ -589,42 +606,98 @@ function bindEvents(){
 // 所以拖进来的语义是「在当前列表里定位并选中」，不是「导入新文件」。
 function bindDrop(){
   const zone = $('dropzone');
-  const hasFiles = e => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  // 除了 Files，也要认 text/uri-list：有些环境只给 URI 不给 File（反过来也有），
+  // 只认 Files 会把"能拿到路径"的那条路直接挡在门外。
+  const hasPayload = e => {
+    const types = Array.from((e.dataTransfer && e.dataTransfer.types) || []);
+    return types.includes('Files') || types.includes('text/uri-list');
+  };
   let depth = 0;
 
   window.addEventListener('dragenter', e => {
-    if(!hasFiles(e)) return;
+    if(!hasPayload(e)) return;
     depth++; zone.classList.add('show');
   });
   window.addEventListener('dragover', e => {
-    if(!hasFiles(e)) return;
+    if(!hasPayload(e)) return;
     e.preventDefault();                     // 不拦的话浏览器会直接打开这个文件
     e.dataTransfer.dropEffect = 'copy';
   });
   window.addEventListener('dragleave', e => {
-    if(!hasFiles(e)) return;
+    if(!hasPayload(e)) return;
     depth = Math.max(0, depth - 1);
     if(!depth) zone.classList.remove('show');
   });
   window.addEventListener('drop', e => {
-    if(!hasFiles(e)) return;
+    if(!hasPayload(e)) return;
     e.preventDefault();
     depth = 0; zone.classList.remove('show');
     handleDrop(e.dataTransfer);
   });
 }
 
+/* 试着从拖拽里抠出 file:// 绝对路径。
+   多数浏览器出于安全不给（只给 File 对象），但给了就能真正"导入这几个文件"。 */
+function dropFileUrls(dt){
+  const out = [];
+  for(const type of ['text/uri-list', 'text/plain']){
+    let s = '';
+    try{ s = dt.getData(type) || ''; }catch(e){ continue; }
+    if(!s) continue;
+    for(const line of s.split(/\r?\n/)){
+      const t = line.trim();
+      if(!/^file:\/\//i.test(t)) continue;
+      let p = t.replace(/^file:\/\/(localhost)?/i, '');
+      try{ p = decodeURIComponent(p); }catch(e){}
+      if(/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);        // Windows: /C:/... → C:/...
+      if(p) out.push(p);
+    }
+    if(out.length) break;
+  }
+  return Array.from(new Set(out));
+}
+
+/* 按绝对路径在当前列表里定位选中（路径比文件名可靠，同名文件也不会认错） */
+function selectByPaths(paths){
+  const byPath = new Map(S.plan.filter(r => r.status === 'ok').map(r => [normPath(r.path), r]));
+  let hit = 0; const missed = [];
+  for(const p of paths){
+    const r = byPath.get(normPath(p));
+    if(r){ S.sel.add(r.path); hit++; } else missed.push(baseName(p));
+  }
+  render();
+  if(hit && !missed.length) toast(`已选中 ${hit} 个文件`, 'ok');
+  else if(hit) toast(`选中 ${hit} 个；${missed.length} 个不在当前列表（${missed.slice(0,3).join('、')}${missed.length>3?'…':''}）`, 'warn');
+  else toast('这几个文件不在当前扫描结果里 —— 可能属于别的文件夹，或者本身没有时间戳', 'bad');
+}
+
 function handleDrop(dt){
   const files = Array.from(dt.files || []);
+  const urls = dropFileUrls(dt);
+
+  // 能读到绝对路径 → 真的把这几个文件加进来
+  if(urls.length){
+    // 但如果它们本来就在当前文件夹里，用户的意图更像「挑这几个」而不是「换个范围」
+    if(S.mode === 'folder' && S.plan.length && S.folderPath &&
+       urls.every(u => isInside(S.folderPath, u))){
+      selectByPaths(urls);
+      return;
+    }
+    const wasFiles = S.mode === 'files';
+    setPickedFiles(urls, wasFiles);
+    toast(`已加入 ${urls.length} 个文件`, 'ok');
+    return;
+  }
+
   if(!files.length){
-    toast('拖进来的像是文件夹。文件夹请用左侧「选择」按钮，程序要先列出里面的文件才能改名', 'warn');
+    toast('拖进来的像是文件夹。文件夹请用「选择文件夹」（程序要先列出里面的文件才能改名）', 'warn');
     return;
   }
   if(!S.plan.length){
-    toast('请先在左侧选一个文件夹、等扫描完，再把文件拖进来选中', 'warn');
+    toast('当前列表是空的。用「选择文件」直接点名文件，或先选一个文件夹再拖进来挑', 'warn');
     return;
   }
-  // 按文件名建索引；同名时再用字节大小区分
+  // 拿不到路径时（WKWebView 就是这样）退回按文件名 + 字节大小匹配
   const byName = new Map();
   for(const r of S.plan){
     if(r.status !== 'ok') continue;
@@ -647,7 +720,7 @@ function handleDrop(dt){
 
   if(hit && !missed.length) toast(`已选中 ${hit} 个文件`, 'ok');
   else if(hit) toast(`选中 ${hit} 个；还有 ${missed.length} 个不在当前列表（${missed.slice(0,3).join('、')}${missed.length>3?'…':''}）`, 'warn');
-  else toast('拖进来的文件都不在当前列表里 —— 可能属于另一个文件夹，或者当前是「无时间戳」状态', 'bad');
+  else toast('拖进来的文件都不在当前列表里 —— 属于别的文件夹的话，用「选择文件」能把它们加进来', 'bad');
 }
 
 function namingOpts(){
@@ -686,7 +759,10 @@ const onNamingChange = (() => {
 async function pickFolder(){
   try{
     const r = await api('/api/pick-folder', {method:'POST', body: JSON.stringify({start: $('folder').value || S.info.desktop})});
-    if(r.path){ $('folder').value = r.path; startScan(); }
+    if(r.path){
+      S.mode = 'folder'; S.picked = []; updatePickNote();
+      $('folder').value = r.path; startScan();
+    }
     else if(r.supported === false){
       toast('当前系统没有可用的图形选择框，请把文件夹路径直接粘贴到左边的输入框', 'warn');
       $('folder').focus();
@@ -694,10 +770,74 @@ async function pickFolder(){
   }catch(e){ toast('选择失败：' + e.message, 'bad'); }
 }
 
+/* 选文件：原生对话框，可多选，可以分几次追加进来 */
+async function pickFiles(){
+  try{
+    const r = await api('/api/pick-files', {method:'POST', body: JSON.stringify({
+      start: $('folder').value.trim() || S.info.desktop,
+    })});
+    if(r.supported === false){
+      toast('当前系统没有图形选择框。把文件直接拖进窗口也行', 'warn');
+      return;
+    }
+    const paths = (r.paths || []).filter(Boolean);
+    if(!paths.length) return;
+    // 已经是文件模式 → 追加；否则替换
+    setPickedFiles(paths, S.mode === 'files');
+  }catch(e){ toast('选择失败：' + e.message, 'bad'); }
+}
+
+function setPickedFiles(paths, append){
+  const list = append ? Array.from(new Set([...(S.picked||[]), ...paths])) : paths.slice();
+  S.mode = 'files';
+  S.picked = list;
+  $('folder').value = '';
+  updatePickNote();
+  startScan();
+}
+
+function clearPickedFiles(){
+  S.mode = 'folder'; S.picked = [];
+  updatePickNote();
+  stopPolling();
+  S.job = null; S.rows = []; S.plan = []; S.view = [];
+  S.sel.clear(); S.known.clear();
+  $('progLine').style.display = 'none';
+  $('empty').style.display = 'grid';
+  $('empty').innerHTML = S.emptyIdle || '';
+  $('scanStage').textContent = '';
+  render(); setBusy(false);
+}
+
+function updatePickNote(){
+  const note = $('pickNote');
+  if(!note) return;
+  const on = S.mode === 'files' && S.picked.length > 0;
+  note.style.display = on ? 'flex' : 'none';
+  $('recursiveWrap').style.display = on ? 'none' : '';   // 文件模式下「递归」没意义
+  if(!on) return;
+  const dirs = new Set(S.picked.map(p => normPath(p).replace(/\/[^/]+$/, '')));
+  $('pickNoteText').textContent = `已选 ${S.picked.length} 个文件` +
+    (dirs.size > 1 ? ` · 分布在 ${dirs.size} 个文件夹` : '');
+}
+
+/* 路径比较统一用 / 并忽略末尾斜杠，Windows 的 \ 也能对上 */
+const normPath = p => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '');
+const baseName = p => normPath(p).split('/').pop();
+const isInside = (root, p) => {
+  const r = normPath(root), q = normPath(p);
+  return !!r && q.startsWith(r + '/');
+};
+
 async function startScan(){
+  const useFiles = S.mode === 'files' && S.picked.length > 0;
   const folder = $('folder').value.trim();
-  if(!folder) return;
-  try{ history.replaceState(null, '', location.pathname + '?folder=' + encodeURIComponent(folder)); }catch(e){}
+  if(!useFiles && !folder) return;
+  S.folderPath = useFiles ? '' : folder;
+  try{
+    history.replaceState(null, '', location.pathname +
+      (useFiles ? '?files=' + S.picked.length : '?folder=' + encodeURIComponent(folder)));
+  }catch(e){}
   stopPolling();
   S.rows = []; S.plan = []; S.job = null;
   S.sel.clear(); S.known.clear();
@@ -708,12 +848,14 @@ async function startScan(){
   $('btnCancel').style.display = 'block';
   setBusy(true);
   try{
-    const r = await api('/api/scan', {method:'POST', body: JSON.stringify({
-      folder, recursive: $('recursive').checked,
+    const body = {
+      recursive: $('recursive').checked,
       useExiftool: $('useExiftool').checked, parseFilename: $('parseFilename').checked,
       readXmp: $('readXmp').checked, readJson: $('readJson').checked,
       onlyMedia: $('onlyMedia').checked, fallback: $('fallback').value,
-    })});
+    };
+    if(useFiles) body.files = S.picked; else body.folder = folder;
+    const r = await api('/api/scan', {method:'POST', body: JSON.stringify(body)});
     S.job = r.job;
     poll();
   }catch(e){
@@ -807,7 +949,7 @@ function updateDock(all, n){
     di.textContent = S.plan.length ? '正在改名，别关窗口…' : '正在扫描…';
     return;
   }
-  if(!S.plan.length){ di.textContent = '先选一个文件夹'; return; }
+  if(!S.plan.length){ di.textContent = '先选文件夹或文件'; return; }
   if(!all){ di.textContent = '这批文件里没有可改名的'; return; }
   if(!n){
     di.classList.add('warn');
@@ -1132,8 +1274,10 @@ function useCurrentDir(){
   if(S.browseCur){ $('folder').value = S.browseCur; closeModal('mBrowse'); startScan(); }
 }
 function reveal(){
-  const p = $('folder').value.trim();
-  if(!p) return;
+  // 文件模式下输入框是空的，退回到「第一个文件的所在目录」
+  const p = $('folder').value.trim() ||
+            (S.mode === 'files' && S.picked.length ? S.picked[0] : '');
+  if(!p){ toast('还没有选择任何文件夹或文件'); return; }
   api('/api/reveal', {method:'POST', body: JSON.stringify({path:p})}).catch(e => toast(e.message,'bad'));
 }
 
@@ -1168,11 +1312,30 @@ function openHelp(){
 
     <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">30 秒上手</h3>
     <div class="note">
-      ① 左边点「选择」挑一个文件夹 →　② 右边出现预览（<b>此时文件还没被改</b>）→　③ 点「开始改名」→　④ 确认。
+      ① 左边点「选择文件夹」挑一个目录，或者点「选择文件」直接点名几个文件
+      （也可以把文件从访达 / 资源管理器里<b>拖进窗口</b>）→　② 右边出现预览
+      （<b>此时文件还没被改</b>）→　③ 点「开始改名」→　④ 确认。
     </div>
     <div class="note" style="margin-top:10px">
       <b>第一次用？</b>建议先把要整理的文件夹<b>复制一份副本</b>出来试手 ——
       确认预览结果符合预期了，再去动原件。改坏了也无所谓，副本删掉重来即可。
+    </div>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">处理范围：整批，还是只挑几个</h3>
+    <p>「1 选择范围」那一栏有两种用法，随时可切换：</p>
+    <div class="kv" style="grid-template-columns:200px 1fr">
+      <b>选择文件夹</b><span>扫整个目录。<b>勾上「包含子文件夹」连里面的子目录一起扫</b>；
+        相册里想只处理某一年，就取消勾选、直接选那一年的目录。</span>
+      <b>选择文件</b><span>不扫目录，<b>只处理你点名的这几个文件</b>。可以反复点、多次追加，
+        也能跨文件夹混着选。选完不会管目录里其它文件。</span>
+      <b>直接拖拽</b><span>把文件从访达 / 资源管理器拖到窗口空白处即可加入。
+        已经选过文件时，拖进来的是<b>追加</b>；如果当前是文件夹模式、且拖进来的文件
+        本来就在这个文件夹里，则退化为「把这几行选中」，不会打乱范围。</span>
+    </div>
+    <div class="note" style="margin-top:12px">
+      <b>提醒：</b>文件模式下顶部的路径框会清空，取而代之的是紫色提示条
+      「已选 N 个文件」，右边有「清空」按钮，点一下回到空状态重新选。
+      文件模式下「包含子文件夹」会自动隐藏 —— 都是点名选的了，递归没有意义。
     </div>
 
     <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">时间是从哪儿来的</h3>
@@ -1195,7 +1358,7 @@ function openHelp(){
 
     <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">命名规则怎么填</h3>
     <div class="kv" style="grid-template-columns:200px 1fr">
-      <b>日期格式</b><span class="mono">%Y%m%d_%H%M%S</span> → 20240506_153008。下拉里没想要的可以选「自定义」</span>
+      <b>日期格式</b><span><span class="mono">%Y%m%d_%H%M%S</span> → 20240506_153008，下拉里没想要的可以选「自定义」</span>
       <b>命名方式</b><span>决定日期和原文件名怎么拼</span>
       <b>前缀 / 后缀</b><span>默认前缀 <span class="mono">IMG_</span>，所以结果是 <span class="mono">IMG_20240506_153008.jpg</span>；改成 <span class="mono">旅行_</span> 之类可方便按事件分组</span>
       <b>按日期归档</b><span>勾上后会移动到 <span class="mono">2024/2024-05</span> 这类子文件夹里</span>
@@ -1232,6 +1395,10 @@ function openHelp(){
     <p style="margin-top:10px"><b>时间差了几小时？</b><br>
        相机时区设置错误留下的历史遗留问题，EXIF 里的时间本身就没有时区。
        本工具优先使用带时区的时间源（内嵌 creationdate / 带 OffsetTime 的 EXIF），会自动换算成本机时间。</p>
+    <p style="margin-top:10px"><b>拖进来的文件没反应？</b><br>
+       有些环境（比如部分 App 内嵌浏览器）拿不到文件的绝对路径，只能退回按
+       <b>文件名 + 字节大小</b>去列表里匹配 —— 所以要先把范围选出来、列表里有内容，
+       拖拽才匹配得上。实在不行就用「选择文件」按钮，那条路一定有绝对路径。</p>
     <p style="margin-top:10px"><b>会影响视频播放吗？</b><br>
        不会。只是改文件名，文件内容一个字节都没动。</p>
 
@@ -1240,8 +1407,9 @@ function openHelp(){
       地址栏里的地址带了 <span class="mono">?folder=目录路径</span>，直接存成书签，
       下次点开就自动扫描那个目录，省掉选文件夹这一步。</p>
     <p style="margin-top:10px"><b>分文件夹编号 · 安全提示</b><br>
-      左侧「1 选择文件夹」那一栏支持勾选<b>包含子文件夹</b>。处理手机导出的相册时建议先勾上，
-      一次性把所有年份都整理掉；如果只想处理某一批，就取消勾选。</p>`;
+      左侧「1 选择范围」那一栏（文件夹模式下）支持勾选<b>包含子文件夹</b>。
+      处理手机导出的相册时建议先勾上，一次性把所有年份都整理掉；
+      如果只想处理某一批，就取消勾选，或者干脆改用「选择文件」点名。</p>`;
   $('helpBody').dataset.loaded = '1';
 }
 </script>

@@ -108,6 +108,23 @@ def _pick_folder_native(start: str) -> str:
     return ""
 
 
+def _pick_files_native(start: str) -> list:
+    """App 模式用系统原生对话框选文件（可多选），返回绝对路径列表。
+
+    走 NSOpenPanel / WinForms，用户亲手选的文件同样绕开 TCC 隐私限制。
+    """
+    import webview
+    wins = list(webview.windows)
+    if not wins:
+        return []
+    res = wins[0].create_file_dialog(
+        webview.OPEN_DIALOG,
+        directory=start if start and os.path.isdir(start) else os.path.expanduser("~"),
+        allow_multiple=True,
+    )
+    return list(res or [])
+
+
 def run_app() -> int:
     import webview
 
@@ -133,6 +150,7 @@ def run_app() -> int:
     )
     server.QUIT_HOOK = _quit_hook
     server.PICK_FOLDER_HOOK = _pick_folder_native
+    server.PICK_FILES_HOOK = _pick_files_native
 
     try:
         webview.start()

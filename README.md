@@ -15,7 +15,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
-![Tests](https://img.shields.io/badge/self--test-55%20pass-brightgreen.svg)
+![Tests](https://img.shields.io/badge/self--test-60%20pass-brightgreen.svg)
 
 简体中文 · [English](README.en.md)
 
@@ -54,7 +54,7 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 | 读取聊天软件导出的文件（从文件名解析）                     |   基本不支持  |                ✅                |
 | 读取 Google Takeout 导出（`.json` 旁车）        |    不支持   |                ✅                |
 | **告诉你时间是哪儿来的**                          |    不告诉   |         ✅ 每个文件都标注来源，可核对         |
-| **只改挑中的那几个文件**（勾选 / 拖拽选中）               |   少有支持   |         ✅ 勾了谁才动谁，其余原封不动         |
+| **只改挑中的那几个文件**（勾选 / 选文件 / 拖拽导入）          |   少有支持   |    ✅ 勾了谁才动谁，也能只扫点名的几个文件   |
 | 撤销                                      |  多数只支持当次 |          ✅ 记录落盘，重启后仍可撤销         |
 | 重复执行结果稳定（幂等）                            |   常出问题   |                ✅                |
 | 安装依赖                                    |   要装一堆包  |      ✅ **零依赖**，纯 Python 标准库     |
@@ -66,7 +66,16 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 
 ![拍摄时间改名器主界面](screenshots/01-main.png)
 
-**改哪几个由你决定**：每行前面有勾选框，勾了才动，没勾的原封不动。
+**范围自己定**：整批扫一个文件夹，还是只点名几个文件，随你。
+
+- 第 1 张卡里「选择文件夹」和「选择文件」并排。选文件走系统原生对话框，
+  按住 ⌘ / Ctrl 可以一次点多个，也能跨文件夹混着选
+- 选完路径框会清空，换成「已选 N 个文件 · 分布在 M 个文件夹」的提示条，
+  右边「清空」一键重选；文件模式下不再按扩展名过滤 —— 你亲手挑的就该出现在列表里
+- 也可以把文件从访达／资源管理器直接**拖进窗口**，拖几次追加几次；
+  如果当前是文件夹模式、拖进来的文件又本来就在这个目录里，会退化成「把这几行选中」
+
+**改哪几个也由你决定**：每行前面有勾选框，勾了才动，没勾的原封不动。
 
 - 扫描完默认全选，想整批改就直接点「开始改名」，跟以前一样
 - 工具条上是「已选 N / M 个待改名」，配 **全选 / 清空 / 反选**，
@@ -191,9 +200,10 @@ winget install exiftool ffmpeg                   # Windows
 sudo apt install libimage-exiftool-perl ffmpeg imagemagick   # Debian / Ubuntu
 ```
 
-> **「选择文件夹」对话框**用的是各系统自带的能力：macOS 走 `osascript`，  
-> Windows 走 PowerShell + .NET，Linux 走 `zenity` / `kdialog`。  
-> 都没有时界面会退回到手动输入路径，功能不受影响。
+> **「选择文件夹」和「选择文件」对话框**用的是各系统自带的能力：macOS 走 `osascript`，  
+> Windows 走 PowerShell + .NET（`OpenFileDialog { Multiselect = $true }`，中文路径不乱码），  
+> Linux 走 `zenity` / `kdialog`。打包成 App / exe 之后直接走 pywebview 的原生对话框。  
+> 都没有时界面会退回到手动输入路径或直接拖拽，功能不受影响。
 
 ## 工作原理：时间戳优先级
 
@@ -265,7 +275,7 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick   # Debian / Ubuntu
 - ❌ **不上传**任何文件、文件名或元数据
 - ❌ **不修改文件内容**。只做重命名（勾选归档时多做一步移动）
 - ✅ 改名和撤销都有冲突保护，绝不覆盖已有文件
-- ✅ 全部 55 项自检都在系统临时目录里跑，不碰真实文件
+- ✅ 全部 60 项自检都在系统临时目录里跑，不碰真实文件
 - ✅ Windows 的 exe 由公开的 GitHub Actions 构建，构建过程可查
 
 ## 性能
@@ -291,7 +301,7 @@ ShutterSort/
 │   ├── app_main.py            ← 原生窗口入口（macOS .app / Windows .exe）
 │   └── static/index.html      ← 界面（单文件，无构建步骤）
 ├── tests/
-│   ├── selftest.py            ← 55 项回归自检
+│   ├── selftest.py            ← 60 项回归自检
 │   └── run_tests.command/.bat ← 双击跑自检
 ├── packaging/                 ← 打包脚本 + 图标（make_ico.py 出 .ico）
 │   ├── build_app.command      ← 双击打包出 macOS .app + 可发布的 zip
@@ -311,9 +321,10 @@ python tests\selftest.py        # Windows
 
 也可以双击 `tests/run_tests.command`（macOS/Linux）或 `tests/run_tests.bat`（Windows）。
 
-55 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
+60 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
 HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、勾选改名（只动选中的、
-拒绝扫描结果之外的路径）、接口安全（路径穿越防护）。  
+拒绝扫描结果之外的路径）、按文件列表扫描（路径去重、跨目录求公共父目录、
+无效路径过滤）、接口安全（路径穿越防护）。  
 全程在临时目录操作，跑完自动清理。
 
 ## 常见问题
@@ -338,7 +349,7 @@ ImageMagick（`winget install ImageMagick`）或 ffmpeg。没装也不影响改�
 
 **Q：支持 Windows / Linux 吗？**  
 支持。三个平台同一份代码、同样的功能，自检在 Windows / macOS / Linux 上都会跑。  
-Windows 上的「选择文件夹」用 PowerShell 调系统原生对话框，中文路径不会乱码。
+Windows 上的「选择文件夹 / 选择文件」用 PowerShell 调系统原生对话框，中文路径不会乱码。
 
 ## 许可证
 
