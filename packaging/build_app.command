@@ -50,13 +50,29 @@ echo "→ 打包（首次约 2-4 分钟）…"
   --osx-bundle-identifier "io.github.js-ping.shuttersort" \
   "../src/app_main.py"
 
-# 3) 本机 ad-hoc 签名（自己用完全够，不用开发者账号）
+# 3) 把版本号写进 Info.plist
+#    PyInstaller 默认写 0.0.0，不改的话「显示简介」里永远是 0.0.0，
+#    用户根本分不清自己装的是哪一版。必须放在签名之前，否则封条失效。
+PLIST="dist/ShutterSort.app/Contents/Info.plist"
+VER="$("$PY" -c "
+import pathlib, re, sys
+s = pathlib.Path('../src/server.py').read_text(encoding='utf-8')
+m = re.search(r'^VERSION\s*=\s*\"([^\"]+)\"', s, re.M)
+print(m.group(1) if m else '0.0.0')
+")"
+for K in CFBundleShortVersionString CFBundleVersion; do
+  /usr/libexec/PlistBuddy -c "Set :$K $VER" "$PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :$K string $VER" "$PLIST"
+done
+echo "  版本号已写入：$VER"
+
+# 4) 本机 ad-hoc 签名（自己用完全够，不用开发者账号）
 echo "→ 签名…"
 codesign --force --deep --sign - "dist/ShutterSort.app" 2>/dev/null || true
 codesign --verify --deep --strict "dist/ShutterSort.app" 2>/dev/null \
   && echo "  签名校验通过" || echo "  ! 签名校验没通过，自己用一般也没事"
 
-# 4) 压成可以直接发出去的 zip
+# 5) 压成可以直接发出去的 zip
 #    外面套一层文件夹，把「首次打开说明」一起放进去；
 #    必须用 ditto，普通 zip 可能丢元数据、破坏签名封条。
 echo "→ 压缩成 zip…"
