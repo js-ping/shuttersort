@@ -15,25 +15,35 @@
 
 ### 下载
 
-| 平台 | 怎么用 |
-| --- | --- |
-| **Windows** | 如果下面的附件里有 `ShutterSort.exe`，下载后双击即用 — 免安装、不需要装 Python |
-| **macOS** | 下载 **Source code (zip)**，解压后双击 `start.command` |
-| **Linux** | 下载 **Source code (zip)**，解压后双击 `start.command`，或 `python3 src/server.py` |
+| 平台 | 附件 | 怎么用 |
+| --- | --- | --- |
+| **Windows** 10/11 64 位 | `ShutterSort.exe` | 下载后双击即用。免安装、不需要装 Python |
+| **macOS** Apple 芯片（M1–M4） | `ShutterSort-macOS-arm64.zip` | 解压 → 把 `ShutterSort.app` 拖进「应用程序」→ 双击 |
+| **macOS** Intel 芯片 | 没有现成包 | 用下面的源码方式，双击 `start.command` |
+| **Linux** | 没有现成包 | 用下面的源码方式，双击 `start.command`，或 `python3 src/server.py` |
 
-**没看到 `ShutterSort.exe` 附件？**（自动构建偶尔会抽风）三条路任选：
+两个平台跑的是**完全同一份代码**，功能没有任何差别。
 
-1. 下载 Source code → 解压 → 双击 `start.bat`
-   （需要 Python 3.8+，安装时记得勾选 `Add python.exe to PATH`）
-2. 下载 Source code → 解压 → 双击 `build_exe.bat`，自己打一份 exe（约 1–3 分钟）
+**没看到上面的附件？**（自动构建偶尔会抽风）三条路任选：
+
+1. 下载 Source code → 解压 → Windows 双击 `start.bat` / macOS 双击 `start.command`
+   （需要 Python 3.8+；Windows 安装时记得勾选 `Add python.exe to PATH`）
+2. 自己打一份：Windows 双击 `build_exe.bat`，macOS 跑 `cd packaging && ./build_app.command`
+   （各约 1–3 分钟）
 3. 到本仓库 [Actions](https://github.com/js-ping/shuttersort/actions) 页面点「Run workflow」，
-   跑完在当次运行的 Artifacts 里下载 exe
+   跑完在当次运行的 Artifacts 里下载
 
-三种方式跑的是**完全同一份代码**，功能没有任何差别。
+### 第一次打开被系统拦下？
 
-### 第一次打开被 SmartScreen 拦下？
+两个平台都会拦，因为没买代码签名证书（苹果一年 688 元，微软的还要更贵）。
 
-这是没买代码签名证书的正常现象，点「更多信息」→「仍要运行」即可。
+- **Windows**：SmartScreen 提示「已保护你的电脑」→ 点「更多信息」→「仍要运行」
+- **macOS**：提示「无法打开，因为 Apple 无法验证此 App」→ 在访达里**右键点 App → 选「打开」
+  → 再点「打开」**；或者跑一行
+  `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`
+
+放行只需要做一次，之后双击就正常了。压缩包里也放了一份《首次打开说明.txt》。
+
 整个程序是纯 Python 标准库写成，源码就在 `src/` 里，可以自己核对，也可以自己打包。
 
 ### 它和普通批量改名工具的区别

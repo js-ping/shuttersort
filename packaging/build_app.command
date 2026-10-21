@@ -53,8 +53,26 @@ echo "→ 打包（首次约 2-4 分钟）…"
 # 3) 本机 ad-hoc 签名（自己用完全够，不用开发者账号）
 echo "→ 签名…"
 codesign --force --deep --sign - "dist/ShutterSort.app" 2>/dev/null || true
+codesign --verify --deep --strict "dist/ShutterSort.app" 2>/dev/null \
+  && echo "  签名校验通过" || echo "  ! 签名校验没通过，自己用一般也没事"
+
+# 4) 压成可以直接发出去的 zip
+#    外面套一层文件夹，把「首次打开说明」一起放进去；
+#    必须用 ditto，普通 zip 可能丢元数据、破坏签名封条。
+echo "→ 压缩成 zip…"
+ZIP="dist/ShutterSort-macOS-arm64.zip"
+rm -rf "dist/_stage" "$ZIP"
+mkdir -p "dist/_stage/ShutterSort-macOS"
+cp -R "dist/ShutterSort.app" "dist/_stage/ShutterSort-macOS/"
+if [ -f "mac/FIRST-RUN.txt" ]; then
+  cp "mac/FIRST-RUN.txt" "dist/_stage/ShutterSort-macOS/首次打开说明.txt"
+fi
+(cd "dist/_stage" && ditto -c -k --sequesterRsrc --keepParent ShutterSort-macOS "../ShutterSort-macOS-arm64.zip")
+rm -rf "dist/_stage"
 
 echo ""
-echo "  ✔ 完成：$(pwd)/dist/ShutterSort.app"
+echo "  ✔ App ：$(pwd)/dist/ShutterSort.app"
+echo "  ✔ 分发：$(pwd)/$ZIP"
+echo "        （这个 zip 直接发给别人就行，里面带首次打开说明）"
 echo ""
 read -n 1 -s -r -p "  按任意键关闭…"

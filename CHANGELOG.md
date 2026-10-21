@@ -15,9 +15,17 @@
   小尺寸用未压缩 DIB、256 用 PNG，兼容性最好），不依赖 Pillow / ImageMagick
 - `packaging/version_info.txt`：exe 的版本信息，Windows「属性 → 详细信息」里能看到中文产品名
 - `tests/run_tests.bat`：双击跑自检
-- **自动打包配置**（`.github/workflows/build-windows.yml`）：推 `v*` 标签，GitHub 就在真实
-  Windows 机器上打包 exe 并自动挂到对应 Release 的附件里；也可在 Actions 页面手动触发，
+- **自动打包配置**（`.github/workflows/build-desktop.yml`）：推 `v*` 标签，GitHub 就在真实的
+  Windows 和 macOS 机器上各打一份，统一挂到对应 Release 的附件里；也可在 Actions 页面手动触发，
   只打包不发布（产物在 Artifacts 里下载）
+
+### 新增：macOS 现成安装包
+
+- Release 上直接提供 `ShutterSort-macOS-arm64.zip`，解压拖进「应用程序」即可用，
+  不需要装 Python（此前 macOS 用户只能下源码跑）
+- `packaging/build_app.command` 打完 `.app` 后会顺手签名并压出这个 zip，
+  里面附带《首次打开说明》（Gatekeeper 放行办法）
+- 只支持 Apple 芯片（M1–M4）。Intel Mac 仍需走源码方式，README 里写清楚了
 
 ### 改动：跨平台适配（`src/server.py` / `src/app_main.py`）
 

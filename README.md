@@ -111,11 +111,25 @@ start.bat
 **方式三：自己打包成 exe**
 
 双击 `build_exe.bat`，会自动装好 PyInstaller、生成图标、打包出 `dist\ShutterSort.exe`。  
-仓库里还带了 [自动打包配置](.github/workflows/build-windows.yml)：推一个 `v*` 标签，  
-GitHub 就会开一台真实 Windows 机器把 exe 打出来，自动挂到对应的 Release 附件里；  
+仓库里还带了 [自动打包配置](.github/workflows/build-desktop.yml)：推一个 `v*` 标签，  
+GitHub 就会开真实的 Windows 和 macOS 机器各打一份，自动挂到对应的 Release 附件里；  
 也可以到 Actions 页面手动点「Run workflow」，只打包不发布（产物在 Artifacts 里下载）。
 
 ### macOS
+
+**方式一：下载打包好的 .app（最省事，仅 Apple 芯片）**
+
+到 [Releases](https://github.com/js-ping/shuttersort/releases) 下载 `ShutterSort-macOS-arm64.zip`，
+解压后把 `ShutterSort.app` 拖进「应用程序」即可。单文件、不需要装 Python。
+
+支持 M1 / M2 / M3 / M4，系统要求 macOS 11+。**Intel 芯片的 Mac 用不了这个包**，走下面的方式二。
+
+> 第一次打开如果提示「无法打开，因为 Apple 无法验证此 App」：
+> 在访达里**右键点 App → 选「打开」→ 再点「打开」**就放行了，只需一次。  
+> 或者跑 `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`。  
+> 这是没买苹果开发者签名的正常现象，压缩包里也附了一份说明。
+
+**方式二：从源码跑**
 
 要求：Python 3.8+（macOS 自带）。
 
@@ -125,12 +139,17 @@ cd shuttersort
 ./start.command          # 双击这个文件也行
 ```
 
-打包成原生 `.app`（原生窗口、关窗即退出、电脑上不需要装 Python）：
+**方式三：自己打包成 .app**
+
+原生窗口、关窗即退出、目标电脑不需要装 Python：
 
 ```bash
 python3 -m pip install pyinstaller pywebview   # 只需一次
 cd packaging && ./build_app.command
 ```
+
+跑完会得到两个东西：`packaging/dist/ShutterSort.app`，以及可以直接发给别人的
+`packaging/dist/ShutterSort-macOS-arm64.zip`（里面带首次打开说明）。
 
 ### Linux
 
@@ -262,8 +281,10 @@ ShutterSort/
 │   ├── selftest.py            ← 49 项回归自检
 │   └── run_tests.command/.bat ← 双击跑自检
 ├── packaging/                 ← 打包脚本 + 图标（make_ico.py 出 .ico）
+│   ├── build_app.command      ← 双击打包出 macOS .app + 可发布的 zip
+│   ├── mac/FIRST-RUN.txt      ← 打进 zip 的《首次打开说明》
 │   └── ci/RELEASE_NOTES.md    ← Release 正文（发版前改这一份）
-├── .github/workflows/         ← 打标签自动在 Windows 上打出 exe 并挂到 Release
+├── .github/workflows/         ← 打标签自动打出 exe 和 .app，一起挂到 Release
 ├── screenshots/               ← README 截图
 └── rename-history/            ← 运行时生成：撤销记录（不要删）
 ```

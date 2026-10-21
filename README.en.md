@@ -94,10 +94,23 @@ start.bat
 **Option 3 — build your own exe**
 
 Double-click `build_exe.bat`. It installs PyInstaller, generates the icon and produces `dist\ShutterSort.exe`.
-(There's also [CI](.github/workflows/build-windows.yml): push a `v*` tag and GitHub builds the exe on
-a real Windows runner and attaches it to the release.)
+(There's also [CI](.github/workflows/build-desktop.yml): push a `v*` tag and GitHub builds both the exe and
+the `.app` on real Windows and macOS runners and attaches them to the release.)
 
 ### macOS
+
+**Option 1 — grab the prebuilt `.app` (easiest, Apple silicon only)**
+
+Download `ShutterSort-macOS-arm64.zip` from [Releases](https://github.com/js-ping/shuttersort/releases),
+unzip it and drag `ShutterSort.app` into `/Applications`. No Python needed.
+
+Supports M1 / M2 / M3 / M4, macOS 11+. **Intel Macs can't run this build** — use Option 2.
+
+> If macOS says *"Apple cannot check it for malicious software"*: **right-click the app → Open → Open**.
+> That's a one-time approval. Or run `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`.
+> It's the normal cost of not buying an Apple Developer certificate; the zip ships with a note explaining this.
+
+**Option 2 — run from source**
 
 Python 3.8+ (built in on macOS):
 
@@ -107,7 +120,7 @@ cd shuttersort
 ./start.command
 ```
 
-Package it as a standalone `.app` (native window, no Python required on the machine):
+**Option 3 — build your own `.app`** (native window, no Python required on the machine):
 
 ```bash
 python3 -m pip install pyinstaller pywebview   # once
@@ -207,8 +220,10 @@ ShutterSort/
 │   └── static/index.html      ← UI (single file, no build step)
 ├── tests/selftest.py          ← 49 regression checks
 ├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
+│   ├── build_app.command      ← builds the macOS .app + a shippable zip
+│   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the zip
 │   └── ci/RELEASE_NOTES.md    ← release body (edit this one before a release)
-├── .github/workflows/         ← tag a release → exe built on Windows and attached
+├── .github/workflows/         ← tag a release → exe + .app built and attached
 └── rename-history/            ← created at runtime: undo records (don't delete)
 ```
 
