@@ -1,8 +1,14 @@
 # 推 v* 标签 → 在真实的 Windows 和 macOS 机器上各打一份，统一挂到对应 Release；
 # 也可以到 Actions 页面手动点 "Run workflow" 只打包不发布（产物在 Artifacts 里）。
 #
-# 注意：通过 API / 脚本改动本文件，token 必须带 `workflow` 权限，否则 GitHub 会
-# 返回一个看不出原因的 404。用网页或本地 git push 改则不受此限制。
+# 两个踩过的坑，改这个文件前先看一眼：
+#
+# 1) 通过 API / 脚本改动本文件，token 必须带 `workflow` 权限，否则 GitHub 会返回
+#    一个看不出原因的 404。用网页或本地 git push 改则不受此限制。
+#
+# 2) 用 Git Data API 的 `PATCH /git/refs/heads/main` 更新引用 **不会** 触发本工作流 ——
+#    GitHub 不把它算作 push 事件（仓库的 pushed_at 也不会变），结果就是改了没反应。
+#    必须走真正的 git push，或者用 Contents API / 网页编辑。
 
 name: 打包桌面版
 
