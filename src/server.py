@@ -214,7 +214,7 @@ from media_time import (  # noqa: E402
 
 APP_TITLE = "拍摄时间改名器"
 APP_NAME_EN = "ShutterSort"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 # 由 app_main.py 注入：App 模式下用原生窗口关闭程序 / 弹系统选择框
 QUIT_HOOK: Optional[Callable[[], None]] = None

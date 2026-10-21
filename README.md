@@ -129,15 +129,17 @@ GitHub 就会开真实的 Windows 和 macOS 机器各打一份，自动挂到对
 
 **方式一：下载打包好的 .app（最省事，仅 Apple 芯片）**
 
-到 [Releases](https://github.com/js-ping/shuttersort/releases) 下载 `ShutterSort-macOS-arm64.zip`，
-解压后把 `ShutterSort.app` 拖进「应用程序」即可。单文件、不需要装 Python。
+到 [Releases](https://github.com/js-ping/shuttersort/releases) 下载 `ShutterSort-macOS-arm64.dmg`，
+双击挂载后把 App 拖到旁边的「应用程序」就装好了。单文件、不需要装 Python。
+
+不想挂载磁盘映像的话，同一个 Release 里也有 `.zip` 版本，解压后同样拖进「应用程序」。
 
 支持 M1 / M2 / M3 / M4，系统要求 macOS 11+。**Intel 芯片的 Mac 用不了这个包**，走下面的方式二。
 
 > 第一次打开如果提示「无法打开，因为 Apple 无法验证此 App」：
 > 在访达里**右键点 App → 选「打开」→ 再点「打开」**就放行了，只需一次。  
 > 或者跑 `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`。  
-> 这是没买苹果开发者签名的正常现象，压缩包里也附了一份说明。
+> 这是没买苹果开发者签名的正常现象，dmg 和 zip 里都附了一份说明。
 
 **方式二：从源码跑**
 
@@ -158,8 +160,9 @@ python3 -m pip install pyinstaller pywebview   # 只需一次
 cd packaging && ./build_app.command
 ```
 
-跑完会得到两个东西：`packaging/dist/ShutterSort.app`，以及可以直接发给别人的
-`packaging/dist/ShutterSort-macOS-arm64.zip`（里面带首次打开说明）。
+跑完会得到三样：`packaging/dist/ShutterSort.app`，可以直接发给别人的
+`packaging/dist/ShutterSort-macOS-arm64.dmg`（挂载即拖），以及备用的
+`packaging/dist/ShutterSort-macOS-arm64.zip`。三种都带首次打开说明。
 
 ### Linux
 

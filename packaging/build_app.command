@@ -86,9 +86,24 @@ fi
 (cd "dist/_stage" && ditto -c -k --sequesterRsrc --keepParent ShutterSort-macOS "../ShutterSort-macOS-arm64.zip")
 rm -rf "dist/_stage"
 
+# 6) 打成 dmg —— macOS 用户双击挂载、把 App 拖到「应用程序」就装好了，
+#    比「解压 zip 再找 .app」顺手得多。UDZO 是压缩格式，体积和 zip 差不多。
+echo "→ 打包成 dmg…"
+DMG="dist/ShutterSort-macOS-arm64.dmg"
+rm -rf "dist/_dmg" "$DMG"
+mkdir -p "dist/_dmg"
+cp -R "dist/ShutterSort.app" "dist/_dmg/"
+# 放一个指向 /Applications 的软链，挂载后可以直接把 App 拖上去
+ln -s /Applications "dist/_dmg/Applications"
+[ -f "mac/FIRST-RUN.txt" ] && cp "mac/FIRST-RUN.txt" "dist/_dmg/首次打开说明.txt"
+hdiutil create -volname "ShutterSort" -srcfolder "dist/_dmg" -ov -format UDZO -quiet "$DMG"
+rm -rf "dist/_dmg"
+# dmg 也签一下，双击挂载时系统检查更顺
+codesign --force --sign - "$DMG" 2>/dev/null || true
+
 echo ""
 echo "  ✔ App ：$(pwd)/dist/ShutterSort.app"
-echo "  ✔ 分发：$(pwd)/$ZIP"
-echo "        （这个 zip 直接发给别人就行，里面带首次打开说明）"
+echo "  ✔ dmg ：$(pwd)/$DMG        ← 发给别人用这个"
+echo "  ✔ zip ：$(pwd)/$ZIP   （备用：解压后同样能拖进「应用程序」）"
 echo ""
 read -n 1 -s -r -p "  按任意键关闭…"

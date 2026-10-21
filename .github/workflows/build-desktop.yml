@@ -47,7 +47,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller pywebview pythonnet
 
-      - name: 跑自检（49 项）
+      - name: 跑自检（55 项）
         run: python tests/selftest.py
 
       - name: 生成 Windows 图标
@@ -98,44 +98,29 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller pywebview
 
-      - name: 跑自检（49 项）
+      - name: 跑自检（55 项）
         run: python tests/selftest.py
 
-      - name: 打包成 .app
+      - name: 打包 .app + dmg
         working-directory: packaging
-        run: >
-          python -m PyInstaller --noconfirm --clean
-          --windowed --onefile
-          --name ShutterSort
-          --icon icons/app.icns
-          --add-data "../src/static:static"
-          --osx-bundle-identifier io.github.js-ping.shuttersort
-          ../src/app_main.py
-
-      - name: 签名并压成 zip
+        # 直接调用打包脚本，不再在 CI 里另抄一份 PyInstaller 参数 ——
+        # 抄一份的后果已经踩过：本地把版本号写进了 Info.plist，CI 那份没跟着改，
+        # 发出去的 .app 版本依然是 0.0.0。单一真相源。
+        # 脚本末尾有个 read -n 1（给人按任意键的），喂个回车让它过。
         run: |
           set -eux
-          codesign --force --deep --sign - packaging/dist/ShutterSort.app
-          codesign --verify --deep --strict packaging/dist/ShutterSort.app
-
-          mkdir -p stage/ShutterSort-macOS
-          cp -R packaging/dist/ShutterSort.app stage/ShutterSort-macOS/
-          # 仓库里用 ASCII 文件名（避免各种工具出问题），发给用户时换回中文
-          cp packaging/mac/FIRST-RUN.txt "stage/ShutterSort-macOS/首次打开说明.txt"
-
-          # 必须用 ditto，普通 zip 可能丢元数据、破坏签名封条
-          cd stage
-          ditto -c -k --sequesterRsrc --keepParent ShutterSort-macOS ../ShutterSort-macOS-arm64.zip
-
-          cd ..
-          ls -lh ShutterSort-macOS-arm64.zip
-          file packaging/dist/ShutterSort.app/Contents/MacOS/ShutterSort
+          export SHUTTERSORT_PY="$(command -v python)"
+          chmod +x build_app.command
+          printf '\n' | ./build_app.command
+          ls -lh dist/
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: ShutterSort-macos
-          path: ShutterSort-macOS-arm64.zip
+          path: |
+            packaging/dist/ShutterSort-macOS-arm64.dmg
+            packaging/dist/ShutterSort-macOS-arm64.zip
           if-no-files-found: error
 
   # --------------------------------------------------------------- 发布
@@ -164,6 +149,7 @@ jobs:
         with:
           files: |
             artifacts/ShutterSort-windows/ShutterSort.exe
+            artifacts/ShutterSort-macos/ShutterSort-macOS-arm64.dmg
             artifacts/ShutterSort-macos/ShutterSort-macOS-arm64.zip
           # 发布说明单独放在 packaging/ci/RELEASE_NOTES.md，一次只维护一份。
           # 发新版本前记得先把它改成当版的内容。
