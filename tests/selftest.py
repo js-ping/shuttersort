@@ -372,6 +372,56 @@ def test_http(root: Path) -> None:
         check("文件名已还原", (root / "photo_exif.jpg").exists(),
               str(sorted(p.name for p in root.iterdir())[:12]))
 
+        # ---- 只改名「勾选的那几个」 ----
+        scan3 = http(url_base + "/api/scan", {"folder": str(root), "recursive": True,
+                                              "onlyMedia": True, "useExiftool": False,
+                                              "parseFilename": True, "readXmp": True,
+                                              "readJson": True, "fallback": "skip"})
+        job3, since3, rows3, done3 = scan3["job"], 0, [], False
+        t0 = time.time()
+        while time.time() - t0 < 40:
+            st = http(f"{url_base}/api/scan/{job3}?since={since3}")
+            rows3 += st.get("rows", [])
+            since3 = st.get("nextIndex", since3)
+            if st.get("done"):
+                done3 = True
+                break
+            time.sleep(0.25)
+
+        pv4 = http(url_base + "/api/preview", {"job": job3, "options": opts})
+        ok_items = [x for x in pv4["plan"] if x["status"] == "ok"]
+        check("勾选改名：有足够文件可测", len(ok_items) >= 4, f"{len(ok_items)} 个")
+
+        picked = ok_items[:2]
+        others = ok_items[2:]
+        rn2 = http(url_base + "/api/rename",
+                   {"job": job3, "options": opts, "paths": [x["path"] for x in picked]})
+        check("勾选改名：只动了勾选的 2 个",
+              rn2.get("ok") and rn2["renamed"] == 2,
+              f"renamed={rn2.get('renamed')} {rn2.get('errs')}")
+        check("勾选改名：勾选的确实改了名",
+              all((Path(x["targetDir"]) / x["newName"]).exists() for x in picked),
+              str([x["newName"] for x in picked]))
+        untouched = [x for x in others if Path(x["path"]).exists()]
+        check("勾选改名：没勾选的一个没动",
+              len(untouched) == len(others),
+              f"{len(others) - len(untouched)} 个被误改")
+
+        # 前端塞一个不在扫描结果里的路径，必须被交集校验挡掉
+        try:
+            http(url_base + "/api/rename",
+                 {"job": job3, "options": opts, "paths": ["/tmp/__not_scanned__.jpg"]})
+            check("勾选改名：拒绝列表外的路径", False, "居然没报错")
+        except urllib.error.HTTPError as e:
+            payload = e.read().decode("utf-8", "replace")
+            check("勾选改名：拒绝列表外的路径", e.code == 400 and "没有选中" in payload,
+                  f"HTTP {e.code} {payload[:80]}")
+
+        un2 = http(url_base + "/api/undo", {"file": rn2["log"]})
+        check("勾选改名：可以撤销回去",
+              un2.get("ok") and un2["undone"] == 2,
+              f"undone={un2.get('undone')}")
+
         # 归档模式
         arch = http(url_base + "/api/preview", {"job": job2, "options": dict(opts, archive=True,
                                                                             archiveFormat="%Y/%Y-%m")})

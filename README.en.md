@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Tests](https://img.shields.io/badge/self--test-49%20pass-brightgreen.svg)](#development--testing)
+[![Tests](https://img.shields.io/badge/self--test-55%20pass-brightgreen.svg)](#development--testing)
 
 [中文说明](README.md) · English
 
@@ -54,6 +54,15 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 **Preview before touching anything** — note the colored timestamp-source tags:
 
 ![Main window](screenshots/01-main.png)
+
+**You decide which files get touched** — every row has a checkbox; unchecked files stay exactly as they are.
+
+- Everything is checked right after a scan, so "just rename all" still works in one click
+- The toolbar shows `N of M selected`, with **Select all / Clear / Invert**.
+  All three only apply to the rows **currently visible after filtering**
+- Drop files from Finder / Explorer onto the window and they get located and checked
+  automatically (same name? byte size breaks the tie). Files not in the list are reported
+- The header checkbox is tri-state: all / partial / none
 
 **Click any row to inspect the source and raw embedded metadata:**
 
@@ -203,7 +212,7 @@ python tests\selftest.py        # Windows
 
 Or just double-click `tests/run_tests.command` (macOS/Linux) / `tests/run_tests.bat` (Windows).
 
-49 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
+55 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).
 Everything runs in a temp directory and cleans itself up.
 
@@ -218,7 +227,7 @@ ShutterSort/
 │   ├── server.py              ← local server + all endpoints
 │   ├── app_main.py            ← native-window entry point (.app / .exe)
 │   └── static/index.html      ← UI (single file, no build step)
-├── tests/selftest.py          ← 49 regression checks
+├── tests/selftest.py          ← 55 regression checks
 ├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
 │   ├── build_app.command      ← builds the macOS .app + a shippable zip
 │   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the zip

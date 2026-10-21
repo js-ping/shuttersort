@@ -214,7 +214,7 @@ from media_time import (  # noqa: E402
 
 APP_TITLE = "拍摄时间改名器"
 APP_NAME_EN = "ShutterSort"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # 由 app_main.py 注入：App 模式下用原生窗口关闭程序 / 弹系统选择框
 QUIT_HOOK: Optional[Callable[[], None]] = None
@@ -384,7 +384,8 @@ def build_plan(rows: List[Dict[str, Any]], opts: Dict[str, Any]) -> List[Dict[st
         ignore = set(vacating)
         ignore.add(str(src))
         uniq = safe_rename_target(target_dir, new_name, used[key], ignore)
-        conflict = "" if uniq == new_name else f"重名 → {uniq}"
+        # newName 存的已经是消解后的最终名，这里再说一遍名字就成了「X → X」的自指
+        conflict = "" if uniq == new_name else "重名加后缀"
         unchanged = (uniq == src.name and target_dir == src.parent)
         item.update({
             "newName": uniq,
@@ -725,6 +726,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._err("任务不存在，请重新扫描")
         options = body.get("options") or {}
         plan = build_plan(job["rows"], options)
+
+        # 只处理用户勾选的那些文件。
+        # 关键：拿前端的路径去跟扫描结果求交集，而不是直接信任 —— 否则等于
+        # 给了一个"重命名本机任意文件"的接口。
+        only = body.get("paths")
+        if only is not None:
+            if not isinstance(only, list):
+                return self._err("paths 必须是数组")
+            wanted = {str(p) for p in only}
+            plan = [x for x in plan if x["path"] in wanted]
+            if not plan:
+                return self._err("没有选中任何文件")
+
         todo = [x for x in plan if x["status"] == "ok"]
         if body.get("dryRun"):
             return self._json({"ok": True, "dryRun": True, "count": len(todo), "plan": plan})

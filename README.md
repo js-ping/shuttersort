@@ -15,7 +15,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
-![Tests](https://img.shields.io/badge/self--test-49%20pass-brightgreen.svg)
+![Tests](https://img.shields.io/badge/self--test-55%20pass-brightgreen.svg)
 
 简体中文 · [English](README.en.md)
 
@@ -54,6 +54,7 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 | 读取聊天软件导出的文件（从文件名解析）                     |   基本不支持  |                ✅                |
 | 读取 Google Takeout 导出（`.json` 旁车）        |    不支持   |                ✅                |
 | **告诉你时间是哪儿来的**                          |    不告诉   |         ✅ 每个文件都标注来源，可核对         |
+| **只改挑中的那几个文件**（勾选 / 拖拽选中）               |   少有支持   |         ✅ 勾了谁才动谁，其余原封不动         |
 | 撤销                                      |  多数只支持当次 |          ✅ 记录落盘，重启后仍可撤销         |
 | 重复执行结果稳定（幂等）                            |   常出问题   |                ✅                |
 | 安装依赖                                    |   要装一堆包  |      ✅ **零依赖**，纯 Python 标准库     |
@@ -64,6 +65,15 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 **预览——改名字之前先看清楚，此时文件还没有被改动：**
 
 ![拍摄时间改名器主界面](screenshots/01-main.png)
+
+**改哪几个由你决定**：每行前面有勾选框，勾了才动，没勾的原封不动。
+
+- 扫描完默认全选，想整批改就直接点「开始改名」，跟以前一样
+- 工具条上是「已选 N / M 个待改名」，配 **全选 / 清空 / 反选**，
+  作用范围只跟着**当前筛选出来的行**走 —— 筛完再全选，不会把看不见的一起改了
+- 从访达／资源管理器把文件拖进窗口，会按文件名自动定位并勾选，
+  同名文件再用字节大小二次区分；拖进来的东西不在列表里会明确告诉你
+- 表头复选框三态：全选 / 半选 / 全不选
 
 每个文件都带一个彩色「时间戳来源」标签，一眼看出整批数据的质量分布：  
 `EXIF:DateTimeOriginal` 是照片内嵌的拍摄时间，`QuickTime:CreateDate` 是视频容器内嵌时间，  
@@ -252,7 +262,7 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick   # Debian / Ubuntu
 - ❌ **不上传**任何文件、文件名或元数据
 - ❌ **不修改文件内容**。只做重命名（勾选归档时多做一步移动）
 - ✅ 改名和撤销都有冲突保护，绝不覆盖已有文件
-- ✅ 全部 49 项自检都在系统临时目录里跑，不碰真实文件
+- ✅ 全部 55 项自检都在系统临时目录里跑，不碰真实文件
 - ✅ Windows 的 exe 由公开的 GitHub Actions 构建，构建过程可查
 
 ## 性能
@@ -278,7 +288,7 @@ ShutterSort/
 │   ├── app_main.py            ← 原生窗口入口（macOS .app / Windows .exe）
 │   └── static/index.html      ← 界面（单文件，无构建步骤）
 ├── tests/
-│   ├── selftest.py            ← 49 项回归自检
+│   ├── selftest.py            ← 55 项回归自检
 │   └── run_tests.command/.bat ← 双击跑自检
 ├── packaging/                 ← 打包脚本 + 图标（make_ico.py 出 .ico）
 │   ├── build_app.command      ← 双击打包出 macOS .app + 可发布的 zip
@@ -298,8 +308,9 @@ python tests\selftest.py        # Windows
 
 也可以双击 `tests/run_tests.command`（macOS/Linux）或 `tests/run_tests.bat`（Windows）。
 
-49 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
-HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、接口安全（路径穿越防护）。  
+55 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
+HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、勾选改名（只动选中的、
+拒绝扫描结果之外的路径）、接口安全（路径穿越防护）。  
 全程在临时目录操作，跑完自动清理。
 
 ## 常见问题
