@@ -966,6 +966,8 @@ EXIFTOOL_TAGS = [
     "Composite:SubSecDateTimeOriginal", "Composite:DateTimeCreated",
     "PNG:CreationTime", "RIFF:DateTimeOriginal",
     "DateTimeOriginal", "CreateDate", "MediaCreateDate", "CreationDate",
+    # 亚秒：连拍（同一秒好几张）要按它排先后。本身不是日期，放在最后只做补充。
+    "EXIF:SubSecTimeOriginal", "EXIF:SubSecTimeDigitized", "EXIF:SubSecTime",
 ]
 
 

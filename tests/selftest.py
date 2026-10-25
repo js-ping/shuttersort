@@ -72,21 +72,32 @@ def check(name, cond, why=""):
 # 样本生成
 # ==========================================================================
 
-def make_tiff(dt="2021:07:04 08:09:10", little=True):
+def make_tiff(dt="2021:07:04 08:09:10", little=True, subsec=None):
     en = "<" if little else ">"
     head = (b"II" if little else b"MM") + struct.pack(en + "H", 42) + struct.pack(en + "I", 8)
     ifd0 = struct.pack(en + "H", 1) + struct.pack(en + "HHI", 0x8769, 4, 1) + struct.pack(en + "I", 26)
     ifd0 += struct.pack(en + "I", 0)
+
     raw = dt.encode() + b"\x00"
-    val_off = 26 + 2 + 12 + 4
-    exif = struct.pack(en + "H", 1)
-    exif += struct.pack(en + "HHI", 0x9003, 2, len(raw)) + struct.pack(en + "I", val_off)
-    exif += struct.pack(en + "I", 0) + raw
+    subs = (subsec.encode() + b"\x00") if subsec else b""
+    entries = [(0x9003, raw)] + ([(0x9291, subs)] if subs else [])
+    # TIFF 规矩：≤4 字节的 ASCII 直接内联在 value 字段里，超过 4 字节才写偏移
+    # （真实的相机就是这么写 SubSec 的，样本也得照做，否则测出来是假的）
+    data_off = 26 + 2 + 12 * len(entries) + 4
+    body, blob = b"", b""
+    for tag, val in entries:
+        if len(val) <= 4:
+            blob += struct.pack(en + "HHI", tag, 2, len(val)) + val.ljust(4, b"\x00")
+        else:
+            blob += (struct.pack(en + "HHI", tag, 2, len(val))
+                     + struct.pack(en + "I", data_off + len(body)))
+            body += val
+    exif = struct.pack(en + "H", len(entries)) + blob + struct.pack(en + "I", 0) + body
     return head + ifd0 + exif
 
 
-def make_jpeg(dt="2021:07:04 08:09:10", xmp=None):
-    tiff = make_tiff(dt)
+def make_jpeg(dt="2021:07:04 08:09:10", xmp=None, subsec=None):
+    tiff = make_tiff(dt, subsec=subsec)
     app1 = b"\xff\xe1" + struct.pack(">H", len(tiff) + 8) + b"Exif\x00\x00" + tiff
     seg = b""
     if xmp:
@@ -143,6 +154,9 @@ def build_samples(root: Path) -> None:
         "<xmp:CreateDate>2022-02-02T02:02:02</xmp:CreateDate>", encoding="utf-8")
     (root / "no_meta_at_all.jpg").write_bytes(b"\xff\xd8\xff\xd9")
     (root / "video_mvhd.mp4").write_bytes(make_mp4_with_mvhd(VIDEO_UTC))
+    # 同秒连拍：文件名顺序故意和亚秒顺序相反（a 的 .42 晚于 b 的 .08）
+    (root / "burst_a.jpg").write_bytes(make_jpeg("2023:09:10 12:00:00", subsec="42"))
+    (root / "burst_b.jpg").write_bytes(make_jpeg("2023:09:10 12:00:00", subsec="08"))
 
     sub = root / "sub"
     sub.mkdir(exist_ok=True)
@@ -372,6 +386,41 @@ def test_http(root: Path) -> None:
         pv2 = http(url_base + "/api/preview", {"job": job, "options": dict(opts, prefix="P_")})
         sample = [x for x in pv2["plan"] if x["status"] == "ok"][0]
         check("前缀参数生效", sample["newName"].startswith("P_"), sample["newName"])
+
+        # ---- 同秒连拍：按亚秒排序，早的拿主名 ----
+        idx = {r["name"]: i for i, r in enumerate(rows)}
+        check("亚秒被读出来", by_name.get("burst_a.jpg", {}).get("tsIso", "").endswith(".420000"),
+              str(by_name.get("burst_a.jpg", {}).get("tsIso")))
+        check("同秒文件按亚秒排序（.08 在 .42 之前）",
+              idx.get("burst_b.jpg", 1) < idx.get("burst_a.jpg", 0),
+              f"burst_b@{idx.get('burst_b.jpg')} burst_a@{idx.get('burst_a.jpg')}")
+        burst = {x["name"]: x["newName"] for x in pv["plan"] if x["name"].startswith("burst_")}
+        check("同秒连拍：亚秒早的拿主名，晚的加 _1",
+              burst.get("burst_b.jpg") == "2023-09-10_12-00-00.jpg"
+              and burst.get("burst_a.jpg") == "2023-09-10_12-00-00_1.jpg",
+              str(burst))
+
+        # ---- 时间校正：+8 小时 / -3 小时（跨天） ----
+        pv_off = http(url_base + "/api/preview",
+                      {"job": job, "options": dict(opts, offsetSeconds=8 * 3600)})
+        row_off = next((x for x in pv_off["plan"] if x["name"] == "burst_b.jpg"), {})
+        check("+8 小时校正写进新文件名",
+              row_off.get("newName") == "2023-09-10_20-00-00.jpg", str(row_off.get("newName")))
+        check("校正后的时间单独带出（亚秒保留、原始值不动）",
+              row_off.get("tsShifted") == "2023-09-10 20:00:00.080000"
+              and row_off.get("ts") == "2023-09-10 12:00:00",
+              f"{row_off.get('tsShifted')} / {row_off.get('ts')}")
+        pv_neg = http(url_base + "/api/preview",
+                      {"job": job, "options": dict(opts, offsetSeconds=-13 * 3600)})
+        row_neg = next((x for x in pv_neg["plan"] if x["name"] == "burst_b.jpg"), {})
+        check("负偏移跨天也正确",
+              row_neg.get("newName") == "2023-09-09_23-00-00.jpg", str(row_neg.get("newName")))
+        pv_zero = http(url_base + "/api/preview", {"job": job, "options": dict(opts, offsetSeconds=0)})
+        row_zero = next((x for x in pv_zero["plan"] if x["name"] == "burst_b.jpg"), {})
+        check("偏移为 0 时与不加校正完全一致",
+              row_zero.get("newName") == "2023-09-10_12-00-00.jpg"
+              and str(row_zero.get("tsShifted", "")).startswith("2023-09-10 12:00:00"),
+              str(row_zero.get("newName")))
 
         # 实际改名
         rn = http(url_base + "/api/rename", {"job": job, "options": opts})

@@ -110,6 +110,12 @@ label.f{display:block;font-size:12px;color:var(--fg3);margin:10px 0 5px}
 input[type=text],select{
   width:100%;background:#131316;border:1px solid var(--line2);color:var(--fg);
   border-radius:var(--radius-sm);padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+/* 原生日期控件默认是浅色的，跟深色界面打架；color-scheme 让它跟着变深 */
+input[type=datetime-local],input[type=number]{
+  width:100%;color-scheme:dark;background:#131316;border:1px solid var(--line2);color:var(--fg);
+  border-radius:var(--radius-sm);padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+input[type=datetime-local]:focus,input[type=number]:focus{
+  border-color:var(--accent);box-shadow:0 0 0 2px rgba(207,169,255,.16)}
 input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(207,169,255,.16)}
 input::placeholder{color:#5f5f68}
 select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238a8a93'/></svg>");
@@ -117,6 +123,7 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
 .row{display:flex;gap:8px;align-items:center}
 .row>*{min-width:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
 .chk{display:flex;align-items:flex-start;gap:9px;padding:7px 0;cursor:pointer;font-size:12.5px;color:var(--fg2);line-height:1.45}
 .chk input{appearance:none;width:16px;height:16px;flex:none;margin-top:1px;border:1.5px solid #4a4a53;
@@ -146,6 +153,8 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
 /* ---------- 表格 ---------- */
 .tablewrap{flex:1;overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:#18181b;position:relative}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+/* 时间/大小/状态这几列内容短，一律不折行；否则会被长文件名挤成竖排 */
+#tbl tbody td:nth-child(5),#tbl tbody td:nth-child(7),#tbl tbody td:nth-child(8){white-space:nowrap}
 thead th{
   position:sticky;top:0;z-index:3;background:#1f1f24;text-align:left;font-weight:600;color:var(--fg2);
   padding:9px 10px;border-bottom:1px solid var(--line2);font-size:11.5px;white-space:nowrap;cursor:pointer;user-select:none}
@@ -172,11 +181,12 @@ tbody tr.st-skip{opacity:.62}
 .src.side{background:rgba(240,138,138,.13);color:#f5a8a8;border-color:rgba(240,138,138,.25)}
 .src.fs{background:rgba(150,150,160,.14);color:#bcbcc6;border-color:rgba(150,150,160,.24)}
 .src.none{background:rgba(120,120,130,.12);color:#8a8a93;border-color:rgba(120,120,130,.2)}
-.pill{display:inline-block;font-size:10.5px;padding:2px 6px;border-radius:var(--radius-xs);font-weight:600}
+.pill{display:inline-block;font-size:10.5px;padding:2px 6px;border-radius:var(--radius-xs);font-weight:600;white-space:nowrap}
 .pill.ok{background:rgba(95,211,154,.15);color:#7fe0b3}
 .pill.same{background:rgba(150,150,160,.14);color:#bcbcc6}
 .pill.skip{background:rgba(240,138,138,.14);color:#f5a8a8}
 .pill.cf{background:rgba(240,198,116,.15);color:#f2d193}
+.pill.corr{background:rgba(207,169,255,.16);color:#d3b8f7;cursor:help}
 
 /* ---------- 勾选 ---------- */
 input.cbx{appearance:none;-webkit-appearance:none;width:16px;height:16px;flex:none;margin:0;
@@ -383,6 +393,25 @@ details.adv summary:hover{color:var(--accent)}
       </details>
     </div>
 
+    <!-- 4 时间校正 -->
+    <div class="card">
+      <h2><span class="n">4</span>时间校正<span class="r" id="corrBadge"></span></h2>
+      <label class="chk">
+        <input type="checkbox" id="corrOn" onchange="updateCorr()">
+        <span>整体调整拍摄时间<small>相机时区设错、出国忘了调时钟时用</small></span>
+      </label>
+
+      <div id="corrBox" style="display:none">
+        <div class="grid3" style="margin-top:9px">
+          <div><label class="f">天</label><input type="number" id="corrD" value="0" step="1" oninput="updateCorr()"></div>
+          <div><label class="f">时</label><input type="number" id="corrH" value="0" step="1" oninput="updateCorr()"></div>
+          <div><label class="f">分</label><input type="number" id="corrM" value="0" step="1" oninput="updateCorr()"></div>
+        </div>
+        <button class="sm ghost" style="width:100%;margin-top:8px" onclick="openCalibrate()">不知道差多少？用选中行反推…</button>
+        <div class="note" id="corrNote" style="margin-top:8px"></div>
+      </div>
+    </div>
+
     </div><!-- /aside-scroll -->
 
     <!-- 执行区：实心底栏，跟上面的滚动区互不重叠 -->
@@ -433,7 +462,7 @@ details.adv summary:hover{color:var(--accent)}
             <th style="width:52px"></th>
             <th data-k="name" style="width:22%">原文件名</th>
             <th data-k="newName" style="width:24%">新文件名</th>
-            <th data-k="ts" style="width:150px">拍摄时间</th>
+            <th data-k="ts" style="width:184px;white-space:nowrap">拍摄时间</th>
             <th data-k="source" style="width:160px">时间戳来源</th>
             <th data-k="size" style="width:82px">大小</th>
             <th data-k="status" style="width:96px">状态</th>
@@ -462,6 +491,29 @@ details.adv summary:hover{color:var(--accent)}
     <footer>
       <button class="ghost" onclick="closeModal('mConfirm')">取消</button>
       <button class="primary" onclick="doRename()">确认执行</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 时间校正：用某个文件反推偏移 -->
+<div class="mask" id="mCal">
+  <div class="modal">
+    <header><h3>用某个文件反推偏移</h3></header>
+    <div class="body">
+      <p style="color:#a8a8b0;line-height:1.75;margin-bottom:12px">
+        挑一个你<b>确定知道真实拍摄时间</b>的文件（先勾上它），把正确时间填进来，
+        其余文件就按同样的差值一起调整。相机时区设错、出国忘了调时钟，都这么救。
+      </p>
+      <div class="kv" id="calInfo" style="grid-template-columns:92px 1fr"></div>
+      <label class="f" style="margin-top:14px">它的真实拍摄时间</label>
+      <input type="datetime-local" id="calInput" step="1">
+      <div class="note" style="margin-top:10px">
+        这里只算出「差多少」，然后按这个差值改文件名。<b>文件里的元数据一个字节都不会动。</b>
+      </div>
+    </div>
+    <footer>
+      <button class="ghost" onclick="closeModal('mCal')">取消</button>
+      <button class="primary" onclick="applyCalibrate()">算出偏移并应用</button>
     </footer>
   </div>
 </div>
@@ -561,6 +613,7 @@ async function api(path, opt){
   }
   bindEvents();
   updateFmtPreview();
+  loadCorr();
   S.emptyIdle = $('empty').innerHTML;      // 清空选择时用它还原空状态
 
   // 支持 ?folder=路径 直接进入某个目录（可做成书签）
@@ -730,9 +783,126 @@ function namingOpts(){
     format: fmt, pattern: $('pattern').value,
     prefix: $('prefix').value, suffix: $('suffix').value,
     archive: $('archive').checked, archiveFormat: $('archiveFmt').value,
+    offsetSeconds: corrSeconds(),
     // false：让"无时间戳"的文件也出现在列表里（方便你核对到底哪些没读到），改名前会再过滤一次
     onlyRenamable: false,
   };
+}
+
+/* ---------------- 时间校正 ---------------- */
+const CORR_KEY = 'shuttersort.corr';
+
+function corrSeconds(){
+  if(!$('corrOn') || !$('corrOn').checked) return 0;
+  const d = +$('corrD').value || 0, h = +$('corrH').value || 0, m = +$('corrM').value || 0;
+  return Math.round(d * 86400 + h * 3600 + m * 60);
+}
+
+function fmtOffset(sec){
+  if(!sec) return '0';
+  const sign = sec < 0 ? '−' : '+';
+  let s = Math.abs(sec);
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.round(s / 60);
+  const parts = [];
+  if(d) parts.push(d + ' 天');
+  if(h) parts.push(h + ' 小时');
+  if(m) parts.push(m + ' 分');
+  return sign + (parts.join('') || '0');
+}
+
+function fmtOffsetShort(sec){
+  if(!sec) return '0';
+  const sign = sec < 0 ? '−' : '+';
+  let s = Math.abs(sec);
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.round(s / 60);
+  const out = (d ? d + 'd' : '') + (h ? h + 'h' : '') + (m ? m + 'm' : '');
+  return sign + (out || '0');
+}
+
+function setCorrSeconds(sec){
+  const neg = sec < 0;
+  let s = Math.abs(sec);
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  $('corrD').value = neg ? -d : d;
+  $('corrH').value = neg ? -h : h;
+  $('corrM').value = neg ? -m : m;
+}
+
+let corrTimer = null;
+function updateCorr(){
+  const on = $('corrOn').checked;
+  $('corrBox').style.display = on ? '' : 'none';
+  const sec = corrSeconds();
+  $('corrBadge').textContent = on && sec ? fmtOffset(sec) : '';
+  $('corrNote').innerHTML = !on ? '' :
+    (!sec ? '偏移量还是 0，等于没开。填个天数或小时数试试。'
+          : `所有文件的时间都<b>${esc(fmtOffset(sec))}</b>，再拿去算文件名。<br>
+             <span style="color:#6a6a73">只影响这次改名，不会改动文件里的元数据。</span>`);
+  try{
+    localStorage.setItem(CORR_KEY, JSON.stringify({
+      on: on, d: $('corrD').value, h: $('corrH').value, m: $('corrM').value}));
+  }catch(e){}
+  // 输入时不要每敲一个字符就请求一次
+  if(corrTimer) clearTimeout(corrTimer);
+  corrTimer = setTimeout(() => { if(S.plan.length) refreshPreview(); }, 220);
+}
+
+function loadCorr(){
+  try{
+    const v = JSON.parse(localStorage.getItem(CORR_KEY) || 'null');
+    if(v){
+      $('corrD').value = v.d ?? 0;
+      $('corrH').value = v.h ?? 0;
+      $('corrM').value = v.m ?? 0;
+      $('corrOn').checked = !!v.on;
+    }
+  }catch(e){}
+  const on = $('corrOn').checked;
+  $('corrBox').style.display = on ? '' : 'none';
+  $('corrBadge').textContent = on && corrSeconds() ? fmtOffset(corrSeconds()) : '';
+}
+
+function rowTsDate(str){
+  if(!str) return null;
+  const d = new Date(String(str).slice(0,19).replace(' ', 'T'));
+  return isNaN(d) ? null : d;
+}
+
+function openCalibrate(){
+  const pool = filtered().filter(r => r.status === 'ok');
+  const chosen = pool.find(r => S.sel.has(r.path)) || pool[0];
+  if(!chosen){ toast('先在表格里勾一个待改名的文件，再回来反推', 'warn'); return; }
+  S.calRow = chosen;
+  const cur = rowTsDate(chosen.ts);
+  $('calInput').value = cur
+    ? new Date(cur.getTime() - cur.getTimezoneOffset() * 60000).toISOString().slice(0,19)
+    : '';
+  $('calInfo').innerHTML = `
+    <b>原文件名</b><span class="mono">${esc(chosen.name)}</span>
+    <b>现在识别为</b><span class="mono">${esc(chosen.ts) || '无时间戳'}</span>`;
+  openModal('mCal');
+  setTimeout(() => { try{ $('calInput').focus(); }catch(e){} }, 60);
+}
+
+function applyCalibrate(){
+  const row = S.calRow;
+  if(!row){ toast('没选中文件', 'warn'); return; }
+  const want = rowTsDate($('calInput').value.replace('T', ' '));
+  const base = rowTsDate(row.ts);
+  if(!want){ toast('先填一个正确时间', 'warn'); return; }
+  if(!base){ toast('这个文件没有可用的原始时间，换一个', 'warn'); return; }
+  const sec = Math.round((want.getTime() - base.getTime()) / 1000);
+  $('corrOn').checked = true;
+  setCorrSeconds(sec);
+  closeModal('mCal');
+  updateCorr();
+  toast(sec ? `已算出偏移 ${fmtOffset(sec)}` : '时间一致，偏移为 0', sec ? 'ok' : 'warn');
 }
 
 function updateFmtPreview(){
@@ -1051,6 +1221,20 @@ function filtered(){
 }
 
 const MAXR = 1500;
+/* 时间列：主时间 + 三位亚秒小字 + 校正标签，整格不换行 */
+function tsCell(r){
+  const off = corrSeconds();
+  const raw = r.tsShifted || r.ts;
+  if(!raw) return '<span style="color:#6a6a73">无</span>';
+  const dot = String(raw).indexOf('.');
+  const main = dot < 0 ? String(raw) : String(raw).slice(0, dot);
+  const frac = dot < 0 ? '' : String(raw).slice(dot + 1, dot + 4);
+  const done = off && r.tsShifted && r.tsShifted !== r.ts;
+  return esc(main)
+    + (frac ? `<span style="color:#6a6a73;font-size:10px">.${esc(frac)}</span>` : '')
+    + (done ? ` <span class="pill corr" title="原始时间 ${esc(r.ts)}，本次整体 ${esc(fmtOffset(off))}">${esc(fmtOffsetShort(off))}</span>` : '');
+}
+
 function render(){
   if(!S.plan.length){
     if(S.rows.length){ $('empty').style.display='grid'; }
@@ -1084,7 +1268,7 @@ function render(){
       <td>${thumb}</td>
       <td class="mono oldname">${esc(r.name)}</td>
       <td class="mono newname">${newCell}</td>
-      <td class="mono">${esc(r.ts) || '<span style="color:#6a6a73">无</span>'}${r.duration?`<span style="color:#6a6a73"> · ${r.duration}s</span>`:''}</td>
+      <td class="mono">${tsCell(r)}${r.duration?`<span style="color:#6a6a73"> · ${r.duration}s</span>`:''}</td>
       <td><span class="src ${srcClass(r.source)}" title="${esc(r.source)}${r.note?'\n'+esc(r.note):''}">${esc(srcShort(r.source))}</span></td>
       <td class="mono" style="color:#8a8a93">${esc(r.sizeText||'')}</td>
       <td><span class="pill ${r.status}">${
@@ -1133,7 +1317,10 @@ function showDetail(path){
       <b>所在目录</b><span class="mono" style="word-break:break-all">${esc(r.dir)}</span>
       <b>原文件名</b><span class="mono">${esc(r.name)}</span>
       <b>新文件名</b><span class="mono">${esc(r.newName) || '—'}</span>
-      <b>拍摄时间</b><span class="mono">${esc(r.tsIso) || '未找到'}</span>
+      <b>拍摄时间</b><span class="mono">${esc(r.tsShifted || r.tsIso) || '未找到'}${
+        corrSeconds() && r.tsShifted && r.tsShifted !== r.ts
+          ? `<div style="color:#6a6a73;font-size:11.5px;margin-top:2px">原始 ${esc(r.tsIso)} · 本次整体 ${esc(fmtOffset(corrSeconds()))}</div>`
+          : ''}</span>
       <b>时间戳来源</b><span>${esc(r.source)}${r.note?`<div style="color:#8a8a93;font-size:11.5px;margin-top:2px">${esc(r.note)}</div>`:''}</span>
       <b>大小</b><span class="mono">${esc(r.sizeText)}</span>
       ${r.duration?`<b>时长</b><span class="mono">${r.duration} 秒</span>`:''}
@@ -1162,6 +1349,9 @@ function askRename(){
       <b>命名格式</b><span class="mono">${esc(opts.format)}</span>
       <b>命名方式</b><span>${esc(opts.pattern)}</span>
       <b>归档</b><span>${opts.archive ? '开启 · <span class="mono">'+esc(opts.archiveFormat)+'</span>' : '关闭（同目录内重命名）'}</span>
+      <b>时间校正</b><span>${opts.offsetSeconds
+        ? `<b style="color:#f2d193">${esc(fmtOffset(opts.offsetSeconds))}</b>（只影响文件名，不改元数据）`
+        : '未启用'}</span>
       <b>重名处理</b><span>${conflicts ? `<b style="color:#f2d193">${conflicts} 个</b> 会自动加后缀（_1、_2…），不会覆盖` : '没有冲突'}</span>
     </div>
     <div style="margin-top:14px;font-size:12px;color:#8a8a93">前几个例子</div>
@@ -1286,7 +1476,7 @@ function exportCsv(){
   const rows = filtered();
   if(!rows.length){ toast('没有可导出的内容'); return; }
   const head = ['原文件名','新文件名','拍摄时间','时间戳来源','所在目录','大小','状态','冲突'];
-  const body = rows.map(r => [r.name, r.newName, r.tsIso, r.source, r.dir, r.sizeText,
+  const body = rows.map(r => [r.name, r.newName, r.tsShifted || r.tsIso, r.source, r.dir, r.sizeText,
     r.status === 'ok' ? '待改名' : r.status === 'same' ? '无需改动' : '无时间戳', r.conflict]);
   const csv = '\ufeff' + [head].concat(body)
     .map(a => a.map(v => `"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
@@ -1364,6 +1554,32 @@ function openHelp(){
       <b>按日期归档</b><span>勾上后会移动到 <span class="mono">2024/2024-05</span> 这类子文件夹里</span>
     </div>
 
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">连拍为什么不会乱</h3>
+    <p>连拍一秒能拍好几张，全都落在同一秒里。程序会读 EXIF 的
+       <span class="mono">SubSecTimeOriginal</span>（亚秒部分），同一秒内按亚秒先后排 ——
+       所以谁拿 <span class="mono">_1</span> 谁拿 <span class="mono">_2</span> 跟快门顺序一致，
+       换台机器重扫也不会对调。表格里的时间会带 3 位小字显示亚秒。</p>
+    <div class="note" style="margin-top:10px">
+      部分安卓机不写亚秒，这时用<b>文件修改时间</b>兜底，再不行用文件名兜底 ——
+      三级排序，结果始终稳定，不会出现「扫两次编号不一样」的情况。
+    </div>
+
+    <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">时间校正怎么用</h3>
+    <p>相机时区设错、出国忘了调时钟、拷来一批时间全错的老照片 —— 勾上左栏「4 时间校正」，
+       填 <b>天 / 时 / 分</b> 三个框（负数就是往前拨），文件名就按校正后的时间生成。</p>
+    <div class="kv" style="grid-template-columns:200px 1fr">
+      <b>正数 / 负数</b><span>正数往后拨，负数往前拨。填 <span class="mono">0 天 8 时 0 分</span> 就是整体加 8 小时</span>
+      <b>反推差多少</b><span>不确定差多少时，选中一行 → 点「不知道差多少？用选中行反推…」→
+        填这张照片<b>真实的拍摄时间</b> → 偏移量自动算好填回去</span>
+      <b>怎么看效果</b><span>表格里校正过的行带橙色偏移标签（如 <span class="mono">+8h</span>），
+        鼠标悬停可看原始时间；「待改名」一列也是校正后的结果</span>
+      <b>记住设置</b><span>存在浏览器本地，刷新或重开窗口都还在；取消勾选就恢复原样</span>
+    </div>
+    <div class="note warn" style="margin-top:12px">
+      <b>校正只影响生成的文件名，绝不改写文件里的 EXIF。</b>
+      原值始终保留，随时把偏移改回 0 重来一次，结果就回去了。
+    </div>
+
     <h3 style="color:#f2f2f4;font-size:15px;margin:20px 0 10px">安全吗</h3>
     <ul style="margin-left:18px;line-height:1.9">
       <li>改名是<b>原地重命名</b>，不复制、不压缩、不动画质</li>
@@ -1394,7 +1610,9 @@ function openHelp(){
        可以在「时间戳来源」里开文件时间兜底，或直接跳过它们。</p>
     <p style="margin-top:10px"><b>时间差了几小时？</b><br>
        相机时区设置错误留下的历史遗留问题，EXIF 里的时间本身就没有时区。
-       本工具优先使用带时区的时间源（内嵌 creationdate / 带 OffsetTime 的 EXIF），会自动换算成本机时间。</p>
+       本工具优先使用带时区的时间源（内嵌 creationdate / 带 OffsetTime 的 EXIF），会自动换算成本机时间。
+       如果差的是<b>固定偏移</b>（比如每次都差 8 小时），直接用左栏「4 时间校正」整体平移即可 ——
+       只改文件名，不动元数据。</p>
     <p style="margin-top:10px"><b>视频时间整整早 / 晚了一个时区？</b><br>
        视频容器里的创建时间是按 <b>UTC</b> 存的，需要换算回本地时间才准。
        v1.3.1 之前，走 exiftool 读的那条路漏了这一步，会早一个时区偏移

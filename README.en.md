@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Tests](https://img.shields.io/badge/self--test-65%20pass-brightgreen.svg)](#development--testing)
+[![Tests](https://img.shields.io/badge/self--test-72%20pass-brightgreen.svg)](#development--testing)
 
 [中文说明](README.md) · English
 
@@ -46,6 +46,8 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 - **Zero dependencies** — pure Python standard library. No `pip install`, no venv, no config.
 - **Self-contained parsers** — TIFF/EXIF, XMP, PNG chunks, WebP and ISOBMFF (MP4/MOV/HEIC) are all parsed in-house, so nothing breaks when external tools are missing.
 - **Deterministic & idempotent** — re-running on an already-renamed folder reports "no change" instead of appending `_1`.
+- **Burst-aware ordering** — sub-second timestamps (`SubSecTime`) decide who gets `_1` vs `_2`, so numbering follows the shutter, not the directory listing.
+- **Time correction** — shift all names by ±days/hours/minutes for a wrong camera clock, or derive the offset from a single reference file. Filenames only; EXIF is never rewritten.
 - **Persistent undo** — every run writes a JSON history file; undo works across sessions.
 - **Safe by default** — conflict handling with `_1`/`_2` suffixes, overwrite protection in both rename and undo directions, and no-timestamp files are skipped rather than guessed.
 - **Cross-platform** — one codebase for Windows, macOS and Linux. Same features, same UI, no per-platform forks.
@@ -202,6 +204,31 @@ Both are editable in the UI (clear the prefix and you get `20261012_122123.jpg`)
 Patterns: `Date only` (default), `Date_original`, `Original_date`, `Original only`.
 Custom strftime-style formats and optional **archiving into date subfolders** (`2024/2024-05/`) are supported too.
 
+When a target name already exists, `_1` / `_2` suffixes are appended. Collision checks skip the file itself and
+names being vacated in the same run, so **re-running is stable** — already-correct files show "no change needed".
+
+### Sub-second ordering for bursts
+
+Burst shots land several frames in the same second. The app reads EXIF `SubSecTimeOriginal` and orders within
+that second by the sub-second part, so `_1`, `_2` … follow the actual shutter order instead of directory order.
+Sub-seconds are shown as three small digits under the timestamp.
+
+When sub-second data is missing (some Android cameras omit it), file mtime is the fallback, then filename —
+a three-level sort key that always produces the same result.
+
+### Time correction (metadata untouched)
+
+Wrong camera clock, travel across time zones, or an old batch with broken timestamps — the filenames inherit the
+error. Enable "time correction" and enter `days / hours / minutes` (negative shifts backwards); all names are
+then generated from the corrected time.
+
+Not sure by how much? Select a row and click "derive from selected row…", type the photo's **actual** capture
+time, and the offset is computed for you.
+
+> ⚠️ **Correction only affects generated filenames — EXIF metadata is never rewritten.** Original values are
+> always kept, so you can revert and redo at any time. Corrected rows carry an orange offset badge (e.g. `+8h`);
+> hover to see the original timestamp.
+
 ## Privacy
 
 - No network access — the server binds to `127.0.0.1` only
@@ -228,7 +255,7 @@ python tests\selftest.py        # Windows
 
 Or just double-click `tests/run_tests.command` (macOS/Linux) / `tests/run_tests.bat` (Windows).
 
-65 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
+72 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).
 Everything runs in a temp directory and cleans itself up.
 
@@ -243,7 +270,7 @@ ShutterSort/
 │   ├── server.py              ← local server + all endpoints
 │   ├── app_main.py            ← native-window entry point (.app / .exe)
 │   └── static/index.html      ← UI (single file, no build step)
-├── tests/selftest.py          ← 65 regression checks
+├── tests/selftest.py          ← 72 regression checks
 ├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
 │   ├── build_app.command      ← builds the macOS .app + dmg + zip
 │   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the dmg/zip

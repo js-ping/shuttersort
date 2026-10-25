@@ -254,7 +254,7 @@ from media_time import (  # noqa: E402
 
 APP_TITLE = "拍摄时间改名器"
 APP_NAME_EN = "ShutterSort"
-VERSION = "1.3.1"
+VERSION = "1.4.0"
 
 # 由 app_main.py 注入：App 模式下用原生窗口关闭程序 / 弹系统选择框
 QUIT_HOOK: Optional[Callable[[], None]] = None
@@ -375,7 +375,10 @@ def _run_scan(job: Dict[str, Any]) -> None:
             job["rows"] = rows
             job["processed"] = i
 
-    rows.sort(key=lambda r: (r["ts"] or "9999"), reverse=False)
+    # 按时间排，同秒时再用亚秒、文件 mtime、文件名兜底 —— 连拍（同一秒好几张）
+    # 的顺序才跟快门一致，_1 _2 的编号也才不会随目录顺序漂移。
+    # tsIso 是定宽 ISO，字典序就是时间序；没有时间的用 "9999" 沉到最后。
+    rows.sort(key=lambda r: (r["tsIso"] or "9999", r["mtime"] or 0, r["name"].lower()))
     job["rows"] = rows
     job["stage"] = "完成"
     job["done"] = True
@@ -396,6 +399,16 @@ def build_plan(rows: List[Dict[str, Any]], opts: Dict[str, Any]) -> List[Dict[st
     archive_fmt = (opts.get("archiveFormat") or "%Y/%Y-%m").strip() or "%Y/%Y-%m"
     only_renamable = bool(opts.get("onlyRenamable", True))
 
+    # 时间校正：相机时区设错、出国忘了调时钟，整批整体平移。
+    # 只作用于「算新文件名」这一步，绝不回写文件里的元数据 —— 那是另一个量级的风险。
+    try:
+        offset = int(opts.get("offsetSeconds") or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    if abs(offset) > 86400 * 3660:      # ±10 年，再夸张就当作误输入
+        offset = 0
+    shift = _dt.timedelta(seconds=offset)
+
     used: Dict[str, set] = {}
     plan: List[Dict[str, Any]] = []
 
@@ -405,11 +418,18 @@ def build_plan(rows: List[Dict[str, Any]], opts: Dict[str, Any]) -> List[Dict[st
     for r in rows:
         src = Path(r["path"])
         dt = None
-        if r.get("ts"):
+        # 优先用带亚秒的 tsIso：连拍校正之后要保住先后关系。
+        for raw_ts, pat in ((r.get("tsIso"), "%Y-%m-%d %H:%M:%S.%f"),
+                            (r.get("ts"), "%Y-%m-%d %H:%M:%S")):
+            if not raw_ts:
+                continue
             try:
-                dt = _dt.datetime.strptime(r["ts"], "%Y-%m-%d %H:%M:%S")
+                dt = _dt.datetime.strptime(raw_ts, pat)
+                break
             except Exception:
                 dt = None
+        if dt is not None and offset:
+            dt = dt + shift
 
         new_name = format_new_name(dt, r["name"], fmt, prefix, suffix, pattern)
         target_dir = src.parent
@@ -428,6 +448,16 @@ def build_plan(rows: List[Dict[str, Any]], opts: Dict[str, Any]) -> List[Dict[st
     for r, new_name, target_dir, dt in staged:
         src = Path(r["path"])
         item = dict(r)
+        # 校正后的时间单独带一份，界面用它显示、也用它排序；
+        # ts / tsIso 保留原始值，便于对照「改之前是多少」。
+        # 亚秒跟着一起带出来 —— 连拍在校正后仍然看得出先后。
+        if dt is not None:
+            shifted_ts = dt.strftime("%Y-%m-%d %H:%M:%S")
+            if dt.microsecond:
+                shifted_ts += ".%06d" % dt.microsecond
+        else:
+            shifted_ts = r.get("ts") or ""
+        item["tsShifted"] = shifted_ts
         if new_name is None:
             item.update({"newName": "", "targetDir": str(target_dir), "status": "skip",
                          "statusText": "跳过（无时间戳）", "conflict": ""})
@@ -452,7 +482,7 @@ def build_plan(rows: List[Dict[str, Any]], opts: Dict[str, Any]) -> List[Dict[st
         })
         plan.append(item)
 
-    plan.sort(key=lambda x: (x["status"] != "ok", x.get("ts") or ""))
+    plan.sort(key=lambda x: (x["status"] != "ok", x.get("tsShifted") or ""))
     return plan
 
 
