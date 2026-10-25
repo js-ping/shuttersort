@@ -15,7 +15,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
-![Tests](https://img.shields.io/badge/self--test-60%20pass-brightgreen.svg)
+![Tests](https://img.shields.io/badge/self--test-65%20pass-brightgreen.svg)
 
 简体中文 · [English](README.en.md)
 
@@ -275,7 +275,7 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick   # Debian / Ubuntu
 - ❌ **不上传**任何文件、文件名或元数据
 - ❌ **不修改文件内容**。只做重命名（勾选归档时多做一步移动）
 - ✅ 改名和撤销都有冲突保护，绝不覆盖已有文件
-- ✅ 全部 60 项自检都在系统临时目录里跑，不碰真实文件
+- ✅ 全部 65 项自检都在系统临时目录里跑，不碰真实文件
 - ✅ Windows 的 exe 由公开的 GitHub Actions 构建，构建过程可查
 
 ## 性能
@@ -301,7 +301,7 @@ ShutterSort/
 │   ├── app_main.py            ← 原生窗口入口（macOS .app / Windows .exe）
 │   └── static/index.html      ← 界面（单文件，无构建步骤）
 ├── tests/
-│   ├── selftest.py            ← 60 项回归自检
+│   ├── selftest.py            ← 65 项回归自检
 │   └── run_tests.command/.bat ← 双击跑自检
 ├── packaging/                 ← 打包脚本 + 图标（make_ico.py 出 .ico）
 │   ├── build_app.command      ← 双击打包出 macOS .app + 可发布的 zip
@@ -321,7 +321,7 @@ python tests\selftest.py        # Windows
 
 也可以双击 `tests/run_tests.command`（macOS/Linux）或 `tests/run_tests.bat`（Windows）。
 
-60 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
+65 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
 HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、勾选改名（只动选中的、
 拒绝扫描结果之外的路径）、按文件列表扫描（路径去重、跨目录求公共父目录、
 无效路径过滤）、接口安全（路径穿越防护）。  
@@ -335,6 +335,16 @@ HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、�
 
 **Q：时间差了几小时？**  
 EXIF 时间本身不带时区，程序无法凭空推断。带时区的时间源（容器 `creationdate`、带 `OffsetTime` 的 EXIF）会自动换算，不会差。
+
+**Q：视频时间比照片早了 / 晚了整整 8 小时？**  
+先看「时间戳来源」那一列：
+
+- `内嵌·mvhd 创建时间` —— 内置解析器直接读容器里的 UTC 秒数再换成本地时间，是对的
+- `exiftool·QuickTime:CreateDate` —— 走的是 exiftool。**v1.3.1 之前**这里有个时区 bug：
+  QuickTime 的时间是按 UTC 存的，而 exiftool 默认按本地时间解释，于是整整早了一个
+  时区偏移（+08:00 就是早 8 小时）。v1.3.1 起已按 UTC 换算，与内置解析器结果一致
+
+顺便说：同一个文件，装没装 exiftool 差 8 小时 —— 这正是它容易被忽略的原因。
 
 **Q：改完名字会影响照片 / 视频本身吗？**  
 不会。原地重命名只改文件名，文件内容一个字节都不动。

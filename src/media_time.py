@@ -84,9 +84,17 @@ def parse_datetime_any(s: Any) -> Optional[_dt.datetime]:
         return None
 
     s = re.sub(r"\s+", " ", s)
-    # 去掉结尾的 "Z"
+    # 结尾的 "Z" 表示 UTC —— 不能简单去掉，那样会把它当成本地时间，
+    # 于是所有带 Z 的时间都比真实时间早了「本机时区偏移」那么多（+08 就早 8 小时）。
     if s.endswith("Z"):
-        s = s[:-1].strip()
+        base = s[:-1].strip()
+        for fmt in DATE_FORMATS:
+            try:
+                dt = _dt.datetime.strptime(base, fmt)
+            except ValueError:
+                continue
+            return to_local_naive(dt.replace(tzinfo=_dt.timezone.utc))
+        s = base
 
     for fmt in DATE_FORMATS:
         try:
@@ -996,6 +1004,11 @@ class ExifTool:
         for i in range(0, len(paths), chunk):
             part = paths[i: i + chunk]
             args = [self.cmd, "-j", "-G", "-s", "-charset", "utf8"]
+            # QuickTime 的创建时间是按 UTC 存的（iPhone 就是这么写），
+            # 而 exiftool 默认按「本地时间」解释，读出来会整整早一个时区偏移。
+            # 加这个开关让它按 UTC 换算，输出里会带上 +08:00 这类偏移，再交给
+            # parse_datetime_any 转回本地 —— 和内置 mvhd 解析器的结果保持一致。
+            args += ["-api", "QuickTimeUTC=1"]
             args += ["-" + t for t in EXIFTOOL_TAGS]
             args += part
             try:
@@ -1035,6 +1048,21 @@ class Probe:
     note: str = ""
 
 
+def _has_tz_marker(s: str) -> bool:
+    """字符串里有没有显式时区（结尾的 Z，或 +08:00 / +0800）。"""
+    t = str(s).strip()
+    return t.endswith("Z") or bool(TZ_RX.search(t))
+
+
+# 这些 QuickTime 标签在文件里是以「1904 纪元的 UTC 秒数」存的（CreateDate 系列），
+# 和 ©day / Keys:CreationDate 那种自由文本日期不是一回事 —— 后者本身就写明了本地时间。
+QUICKTIME_UTC_TAGS = {
+    "QuickTime:CreateDate", "QuickTime:MediaCreateDate",
+    "QuickTime:TrackCreateDate", "QuickTime:ContentCreateDate",
+    "CreateDate", "MediaCreateDate",
+}
+
+
 def _exiftool_dt(md: Dict[str, str]) -> Tuple[Optional[_dt.datetime], str, str]:
     for tag in EXIFTOOL_TAGS:
         v = md.get(tag)
@@ -1042,6 +1070,11 @@ def _exiftool_dt(md: Dict[str, str]) -> Tuple[Optional[_dt.datetime], str, str]:
             continue
         dt = parse_datetime_any(v)
         if dt:
+            # QuickTime 的 CreateDate 系列是 UTC 存的。正常情况（加了
+            # -api QuickTimeUTC=1）字符串会带 +08:00 偏移，上面已经转好了；
+            # 万一只拿到个裸时间，这里按 UTC 补一次换算，免得整整早一个时区。
+            if tag in QUICKTIME_UTC_TAGS and not _has_tz_marker(str(v)):
+                dt = to_local_naive(dt.replace(tzinfo=_dt.timezone.utc))
             # 秒以下精度
             for sk in ("EXIF:SubSecTimeOriginal", "SubSecTimeOriginal", "EXIF:SubSecTimeDigitized"):
                 if md.get(sk):

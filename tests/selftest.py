@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 import zlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Windows 上如果输出被重定向到管道（CI、`> 日志.txt`），Python 会用 ANSI 代码页
@@ -42,8 +42,8 @@ PROG = HERE.parent / "src"
 sys.path.insert(0, str(PROG))
 
 from media_time import (  # noqa: E402
-    ExifTool, ReadOptions, format_new_name, parse_date_from_filename, probe_file,
-    safe_rename_target,
+    ExifTool, ReadOptions, _exiftool_dt, format_new_name, parse_date_from_filename,
+    parse_datetime_any, probe_file, safe_rename_target,
 )
 
 PASS, FAIL, WARN = [], [], []
@@ -108,6 +108,23 @@ def make_png(y=2018, mo=11, d=23, hh=7, mm=8, ss=9):
             + png_chunk(b"IEND", b""))
 
 
+def make_mp4_with_mvhd(utc_dt):
+    """造一个只含 ftyp + moov/mvhd 的极简 MP4。
+
+    mvhd 里的 creation_time 和真实现场一样是「1904 纪元的 UTC 秒数」，
+    能不能正确换回本地时间，就靠这个样本兜着。
+    """
+    epoch = datetime(1904, 1, 1)
+    secs = int((utc_dt - epoch).total_seconds())
+    payload = (b"\x00\x00\x00\x00"                       # version 0 + flags
+               + struct.pack(">II", secs, secs)          # creation / modification
+               + struct.pack(">II", 1000, 0))            # timescale / duration
+    mvhd = struct.pack(">I", 8 + len(payload)) + b"mvhd" + payload
+    moov = struct.pack(">I", 8 + len(mvhd)) + b"moov" + mvhd
+    ftyp = struct.pack(">I", 16) + b"ftyp" + b"isom\x00\x00\x02\x00"
+    return ftyp + moov
+
+
 def build_samples(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     (root / "photo_exif.jpg").write_bytes(make_jpeg())
@@ -125,6 +142,7 @@ def build_samples(root: Path) -> None:
     (root / "via_xmp.mp4.xmp").write_text(
         "<xmp:CreateDate>2022-02-02T02:02:02</xmp:CreateDate>", encoding="utf-8")
     (root / "no_meta_at_all.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+    (root / "video_mvhd.mp4").write_bytes(make_mp4_with_mvhd(VIDEO_UTC))
 
     sub = root / "sub"
     sub.mkdir(exist_ok=True)
@@ -134,6 +152,10 @@ def build_samples(root: Path) -> None:
 # ==========================================================================
 # 第一段：解析器单元测试
 # ==========================================================================
+
+# mvhd 里存的是 UTC 秒数，样本按 UTC 造，期望值跟着跑测机器的时区算。
+VIDEO_UTC = datetime(2024, 5, 6, 7, 30, 8)
+VIDEO_LOCAL = VIDEO_UTC.replace(tzinfo=timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 EXPECT = {
     "photo_exif.jpg": "2021-07-04 08:09:10",
@@ -148,6 +170,8 @@ EXPECT = {
     # （写死成 +08:00 的话，在 UTC 的 CI runner 上会假报错。）
     "stripped.jpg": datetime.fromtimestamp(1609459200).strftime("%Y-%m-%d %H:%M:%S"),
     "via_xmp.mp4": "2022-02-02 02:02:02",
+    # mvhd 同理：视频容器里存的是 UTC，要换成本地时间才对
+    "video_mvhd.mp4": VIDEO_LOCAL,
 }
 
 
@@ -184,6 +208,23 @@ def test_parser(root: Path) -> None:
 
     dt, _ = parse_date_from_filename("c39d5b1e-77a4-4f2c-9c1a-1b2c3d4e5f60.png")
     check("UUID 文件名不被误判为时间", dt is None)
+
+    # ---- 时区：视频时间是 UTC 存的，换算链路必须一致 ----
+    check("Z 结尾的 UTC 时间会换成本地时间",
+          parse_datetime_any("2024-05-06T07:30:08Z") == datetime.strptime(VIDEO_LOCAL, "%Y-%m-%d %H:%M:%S"),
+          str(parse_datetime_any("2024-05-06T07:30:08Z")))
+    check("带 +08:00 偏移的时间会换算成本地时间",
+          parse_datetime_any("2024-05-06T15:30:08+08:00") == datetime.strptime(VIDEO_LOCAL, "%Y-%m-%d %H:%M:%S"),
+          str(parse_datetime_any("2024-05-06T15:30:08+08:00")))
+    # exiftool 的 QuickTime:CreateDate 是裸的 UTC 字符串（没有 Z 也没有偏移），
+    # 早先直接当本地时间用，视频时间整整早了「时区偏移」那么多。
+    dt_et, _, _ = _exiftool_dt({"QuickTime:CreateDate": "2024:05:06 07:30:08"})
+    check("exiftool 的裸 QuickTime 时间按 UTC 解释",
+          dt_et == datetime.strptime(VIDEO_LOCAL, "%Y-%m-%d %H:%M:%S"), f"实际 {dt_et}")
+    # ©day / Keys:CreationDate 这类自由文本日期本身就是本地时间，不能被平移
+    dt_day, _, _ = _exiftool_dt({"QuickTime:CreationDate": "2024:05:06 07:30:08"})
+    check("©day / Keys 文本日期不做 UTC 平移",
+          dt_day == datetime(2024, 5, 6, 7, 30, 8), f"实际 {dt_day}")
 
 
 def test_naming() -> None:

@@ -47,7 +47,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller pywebview pythonnet
 
-      - name: 跑自检（60 项）
+      - name: 跑自检（65 项）
         run: python tests/selftest.py
 
       - name: 生成 Windows 图标
@@ -98,7 +98,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller pywebview
 
-      - name: 跑自检（60 项）
+      - name: 跑自检（65 项）
         run: python tests/selftest.py
 
       - name: 打包 .app + dmg

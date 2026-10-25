@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Tests](https://img.shields.io/badge/self--test-60%20pass-brightgreen.svg)](#development--testing)
+[![Tests](https://img.shields.io/badge/self--test-65%20pass-brightgreen.svg)](#development--testing)
 
 [中文说明](README.md) · English
 
@@ -228,7 +228,7 @@ python tests\selftest.py        # Windows
 
 Or just double-click `tests/run_tests.command` (macOS/Linux) / `tests/run_tests.bat` (Windows).
 
-60 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
+65 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).
 Everything runs in a temp directory and cleans itself up.
 
@@ -243,7 +243,7 @@ ShutterSort/
 │   ├── server.py              ← local server + all endpoints
 │   ├── app_main.py            ← native-window entry point (.app / .exe)
 │   └── static/index.html      ← UI (single file, no build step)
-├── tests/selftest.py          ← 60 regression checks
+├── tests/selftest.py          ← 65 regression checks
 ├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
 │   ├── build_app.command      ← builds the macOS .app + dmg + zip
 │   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the dmg/zip
