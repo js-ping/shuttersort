@@ -53,6 +53,13 @@ struct ContentView: View {
         .onAppear {
             // 从命令行直接跑可执行文件时不会自动到前台，这里补一下
             NSApplication.shared.activate(ignoringOtherApps: true)
+            // 核对深浅色用：`--light` / `--dark` 强制指定外观，正常启动不受影响
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("--light") {
+                NSApp.appearance = NSAppearance(named: .aqua)
+            } else if args.contains("--dark") {
+                NSApp.appearance = NSAppearance(named: .darkAqua)
+            }
             if state.autoScanOnLaunch {
                 state.autoScanOnLaunch = false
                 state.startScan()
