@@ -103,6 +103,10 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 
 ![改名记录可撤销](screenshots/04-history.png)
 
+**相机时钟错了也不怕——左栏第 4 张卡整体平移时间，只改文件名、不动元数据：**
+
+![时间校正](screenshots/05-correction.png)
+
 ## 快速开始
 
 ### Windows

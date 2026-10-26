@@ -90,6 +90,10 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 
 ![History](screenshots/04-history.png)
 
+**Wrong camera clock? Shift the whole batch — filenames only, metadata untouched:**
+
+![Time correction](screenshots/05-correction.png)
+
 ## Quick start
 
 ### Windows
