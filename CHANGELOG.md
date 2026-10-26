@@ -31,6 +31,12 @@
   分辨率），原生版直接用 `stat` 的纳秒值，**比 Python 版更准**；容差在脚本里显式声明，不静默吞
 - 一条命令跑完；CI 在打包前必跑，不一致直接失败
 
+### 修复
+
+- **滚动表格导致崩溃**：表格单元格 `TimeCell` 误用了 `@EnvironmentObject`，Table
+  滚动回收重建时环境对象不在场，一读就 `EnvironmentObject.error()` 崩掉。
+  改成把需要的值当普通参数传入，不再依赖环境对象
+
 ### 其它
 
 - 版本号来源仍是 `src/server.py` 的 `VERSION`，Windows 资源里的

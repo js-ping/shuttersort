@@ -129,11 +129,11 @@ final class Snapper {
 
         // 表格里的单元格：列宽够不够，只有按真实列宽渲染才看得出来
         if let withBadge = state.plan.first(where: { $0.status == .ok && $0.displayTime != nil }) {
-            shoot("cell-time", cellRow(AnyView(TimeCell(item: withBadge))),
+            shoot("cell-time", cellRow(AnyView(TimeCell(item: withBadge, offsetLabel: state.offsetShortLabel))),
                   width: W.timeIdeal, height: 26)
         }
         if let sub = state.plan.first(where: { ($0.displayTime?.micro ?? 0) != 0 }) {
-            shoot("cell-time-subsec", cellRow(AnyView(TimeCell(item: sub))),
+            shoot("cell-time-subsec", cellRow(AnyView(TimeCell(item: sub, offsetLabel: state.offsetShortLabel))),
                   width: W.timeIdeal, height: 26)
         }
         if let conflict = state.plan.first(where: { !$0.conflict.isEmpty }) {

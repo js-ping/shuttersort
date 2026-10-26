@@ -135,7 +135,7 @@ struct DetailPane: View {
             .width(min: 120, ideal: ColWidth.newNameIdeal)
 
             TableColumn("拍摄时间") { item in
-                TimeCell(item: item)
+                TimeCell(item: item, offsetLabel: state.offsetShortLabel)
             }
             .width(min: ColWidth.timeMin, ideal: ColWidth.timeIdeal)
 
@@ -319,8 +319,12 @@ struct NewNameCell: View {
 }
 
 struct TimeCell: View {
-    @EnvironmentObject private var state: AppState
     let item: PlanItem
+    /// 表格里那个橙色小标签的短形式：+8h / −30m / +1d
+    ///
+    /// 刻意不用 @EnvironmentObject —— Table 滚动时单元格会被回收重建，
+    /// 那条重建路径下环境对象不一定在场，一读就 EnvironmentObject.error() 崩掉。
+    var offsetLabel: String = ""
 
     var body: some View {
         if let t = item.displayTime {
@@ -334,9 +338,9 @@ struct TimeCell: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                if !state.offsetShortLabel.isEmpty,
+                if !offsetLabel.isEmpty,
                    let orig = item.originalTime, orig != t {
-                    Text(state.offsetShortLabel)
+                    Text(offsetLabel)
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.orange)
                         .padding(.horizontal, 3.5)
