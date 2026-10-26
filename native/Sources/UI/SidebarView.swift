@@ -234,12 +234,7 @@ struct SidebarView: View {
     private func numberField(_ label: String, value: Binding<Int>) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.system(size: 10.5)).foregroundStyle(.secondary)
-            TextField("", value: value, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 11.5, design: .monospaced))
-                .controlSize(.small)
-                .multilineTextAlignment(.center)
-                .onChange(of: value.wrappedValue) { _, _ in state.optionsChanged() }
+            SignedIntField(value: value) { state.optionsChanged() }
         }
     }
 
@@ -283,4 +278,48 @@ struct SidebarView: View {
 
 extension Optional where Wrapped == URL {
     var isNilOrEmpty: Bool { self == nil }
+}
+
+/// 可以输负数的整数输入框（天 / 时 / 分）。
+///
+/// 不用 `TextField(value:format:.number)`：那个在「刚敲下减号」的那一下会把输入吞掉，
+/// 想填 −8 小时得靠光标技巧。这里自己拿字符串兜住输入过程：
+/// 只有**能完整解析成整数**时才回写绑定值，所以 `-`、`-8`、空串都不会被抢走。
+struct SignedIntField: View {
+    @Binding var value: Int
+    var onChange: () -> Void
+
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("0", text: $text)
+            .textFieldStyle(.roundedBorder)
+            .font(.system(size: 11.5, design: .monospaced))
+            .controlSize(.small)
+            .multilineTextAlignment(.center)
+            .focused($focused)
+            .onAppear { text = String(value) }
+            .onChange(of: text) { _, new in
+                // 只留数字和减号，顺手挡掉粘贴进来的怪字符
+                let cleaned = new.filter { $0.isNumber || $0 == "-" }
+                if cleaned != new { text = cleaned; return }
+                if cleaned.isEmpty {
+                    if value != 0 { value = 0; onChange() }
+                    return
+                }
+                // "-" / "-0" 这类中间状态解析不成整数，原样留着别动
+                if let n = Int(cleaned), n != value {
+                    value = n
+                    onChange()
+                }
+            }
+            .onChange(of: value) { _, new in
+                // 外部改了值（比如「用选中行反推」回填）时同步文本框
+                if Int(text) != new { text = String(new) }
+            }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { text = String(value) }
+            }
+    }
 }

@@ -116,19 +116,75 @@ func dumpJSON(rows: [MediaRow], plan: [PlanItem]) -> String {
     return "{" + parts.joined(separator: ",") + "}"
 }
 
+// ---------------- 改名自检 ----------------
+
+/// 真刀真枪地改一遍名字，再撤销回来，逐条断言。
+///
+/// 覆盖的是「只有界面才点得到」的四条路：改名、幂等复扫、CSV 导出、撤销。
+/// 全程在临时目录 + 临时状态目录里跑，不碰用户的真实文件和撤销记录。
+func renameSelfTest(rows: [MediaRow], plan: [PlanItem]) -> Int32 {
+    var fails = 0
+    func check(_ ok: Bool, _ label: String) {
+        print((ok ? "  ✓ " : "  ✗ ") + label)
+        if !ok { fails += 1 }
+    }
+
+    let fm = FileManager.default
+    let todo = plan.filter { $0.status == .ok }
+    guard !todo.isEmpty else {
+        print("  ✗ 样本里没有可改名的文件，没法测")
+        return 1
+    }
+
+    // 1. 改名
+    let outcome = Renamer.perform(plan: plan, selected: Set(todo.map { $0.path }))
+    check(outcome.renamed == todo.count, "改名 \(outcome.renamed)/\(todo.count) 个")
+    check(outcome.errors == 0, "改名过程零报错")
+    for item in todo {
+        let dst = item.targetDir + "/" + item.newName
+        check(fm.fileExists(atPath: dst), "落盘：\(item.newName)")
+    }
+    for item in todo where item.targetDir == item.dir {
+        check(!fm.fileExists(atPath: item.path), "原名已不存在：\(item.name)")
+    }
+
+    // 2. 幂等：同样的规则再扫一遍，不该再有「待改名」
+    let (rows2, plan2) = scanAndPlan(dir: nil,
+                                     files: todo.map { $0.targetDir + "/" + $0.newName },
+                                     args: CLIArgs())
+    _ = rows2
+    check(plan2.allSatisfy { $0.status != .ok }, "复扫没有新的待改名（幂等）")
+
+    // 3. CSV
+    let csv = Renamer.csv(for: plan2)
+    check(csv.hasPrefix("原文件名,新文件名,拍摄时间"), "CSV 表头正确")
+    check(csv.split(separator: "\n").count == plan2.count + 1, "CSV 行数 = 计划数 + 表头")
+
+    // 4. 撤销
+    let undo = Renamer.undo(file: nil)
+    check(undo.undone == todo.count, "撤销 \(undo.undone)/\(todo.count) 个")
+    for item in todo {
+        check(fm.fileExists(atPath: item.path), "原名已还原：\(item.name)")
+        check(!fm.fileExists(atPath: item.targetDir + "/" + item.newName), "新名已清掉")
+    }
+
+    // 5. 再撤销一次应该没东西可撤（记录已消费）
+    let again = Renamer.undo(file: nil)
+    check(again.undone == 0, "重复撤销不会误删文件")
+
+    print(fails == 0 ? "  改名自检全部通过" : "  \(fails) 项失败")
+    return fails == 0 ? 0 : 1
+}
+
 // ---------------- 主流程 ----------------
 
-let args = CLIArgs.parse(Array(CommandLine.arguments.dropFirst()))
-
-switch args.command {
-case "version":
-    print("ShutterSort CLI（原生版对照用）")
-
-case "dump":
+/// 扫目录 → 出 rows → 出 plan。dump 和 rename-test 共用这一段，
+/// 免得两条路径的排序/优先级链慢慢跑偏。
+func scanAndPlan(dir: String?, files: [String], args: CLIArgs) -> ([MediaRow], [PlanItem]) {
     let urls: [URL]
-    if !args.files.isEmpty {
-        urls = args.files.map { URL(fileURLWithPath: $0) }
-    } else if let dir = args.dir {
+    if !files.isEmpty {
+        urls = files.map { URL(fileURLWithPath: $0) }
+    } else if let dir {
         urls = Scanner.collect(folder: URL(fileURLWithPath: dir),
                                recursive: args.recursive,
                                onlyMedia: args.onlyMedia,
@@ -158,7 +214,7 @@ case "dump":
     let lock = NSLock()
     let queue = DispatchQueue(label: "scan", attributes: .concurrent)
     let group = DispatchGroup()
-    let sem = DispatchSemaphore(value: min(16, max(4, ProcessInfo.processInfo.activeProcessorCount * 2)))
+    let sem = DispatchSemaphore(value: Swift.min(16, Swift.max(4, ProcessInfo.processInfo.activeProcessorCount * 2)))
 
     for url in sorted {
         sem.wait()
@@ -190,8 +246,25 @@ case "dump":
     ro.archiveFormat = args.archiveFormat
     ro.offsetSeconds = args.offset
 
-    let plan = Planner.build(rows: rows, options: ro)
+    return (rows, Planner.build(rows: rows, options: ro))
+}
+
+let args = CLIArgs.parse(Array(CommandLine.arguments.dropFirst()))
+
+switch args.command {
+case "version":
+    print("ShutterSort CLI（原生版对照用）")
+
+case "dump":
+    let (rows, plan) = scanAndPlan(dir: args.dir, files: args.files, args: args)
     print(dumpJSON(rows: rows, plan: plan))
+
+case "rename-test":
+    // 改名 / 撤销 / CSV / 幂等 这四条路只有在界面里才点得到，命令行里补一个
+    // 自检：把样本复制到临时目录，真改一遍名字，再撤销回来。
+    // 走的是和界面完全相同的 Renamer 代码，所以能当作发布前的闸门。
+    let (rows, plan) = scanAndPlan(dir: args.dir, files: args.files, args: args)
+    exit(renameSelfTest(rows: rows, plan: plan))
 
 default:
     FileHandle.standardError.write(Data("未知命令：\(args.command)\n".utf8))

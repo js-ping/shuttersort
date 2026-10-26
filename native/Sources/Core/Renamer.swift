@@ -5,7 +5,14 @@ enum Renamer {
 
     /// `~/Library/Application Support/ShutterSort/rename-history`
     /// —— 与 Python 版用同一个目录，撤销记录可以互通。
+    ///
+    /// 可以用环境变量 `SHUTTERSORT_STATE_DIR` 改到别处：自动化测试要用，
+    /// 免得自检产生的记录混进用户真实的撤销历史里。
     static var stateDir: URL {
+        if let custom = ProcessInfo.processInfo.environment["SHUTTERSORT_STATE_DIR"],
+           !custom.isEmpty {
+            return URL(fileURLWithPath: custom)
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                             in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
@@ -114,6 +121,21 @@ enum Renamer {
         return out
     }
 
+    /// 这批文件的共同父目录，写进撤销记录里给「改名记录」窗口显示用。
+    private static func commonParent(_ pairs: [UndoPair]) -> String {
+        guard let first = pairs.first else { return "" }
+        var parts = (first.from as NSString).deletingLastPathComponent
+            .split(separator: "/").map(String.init)
+        for pair in pairs.dropFirst() {
+            let dir = (pair.from as NSString).deletingLastPathComponent
+                .split(separator: "/").map(String.init)
+            var k = 0
+            while k < parts.count, k < dir.count, parts[k] == dir[k] { k += 1 }
+            parts = Array(parts.prefix(k))
+        }
+        return "/" + parts.joined(separator: "/")
+    }
+
     private static func writeLog(pairs: [UndoPair], renamed: Int) -> String? {
         guard !pairs.isEmpty else { return nil }
         ensureDirs()
@@ -124,7 +146,7 @@ enum Renamer {
             time: PyFormat.strftime("%Y-%m-%d %H:%M:%S", PyFormat.now),
             count: pairs.count,
             pairs: pairs,
-            meta: ["renamed": String(renamed)]
+            meta: ["folder": commonParent(pairs), "renamed": String(renamed)]
         )
 
         let enc = JSONEncoder()
@@ -213,6 +235,14 @@ enum Renamer {
                     out.messages.append(error.localizedDescription)
                 }
             }
+        }
+
+        // 全部还原成功 → 把这条记录改名成 .json.done 归档掉，
+        // 免得「改名记录」里还挂着一条已经撤完的，点进去又提示失败。
+        // 与 Python 版的行为一致（那边也是 rename 成 .json.done）。
+        if out.undone > 0, out.failed == 0 {
+            let done = target.deletingPathExtension().appendingPathExtension("json.done")
+            try? fm.moveItem(at: target, to: done)
         }
         return out
     }

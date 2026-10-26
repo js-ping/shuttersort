@@ -94,6 +94,43 @@ def scenarios(target: str) -> list:
     ]
 
 
+def rename_selftest(binary: Path, corpus: str, work: Path):
+    """真改一遍名字再撤销回来。
+
+    只挑 6 个样本：带 EXIF 的、PNG、WebP、无元数据的、同秒连拍两张。
+    覆盖「改名 / 同秒冲突加后缀 / 幂等复扫 / CSV 导出 / 撤销 / 重复撤销」。
+    全程在临时目录 + 临时状态目录里跑，不碰真实文件和真实撤销记录。
+    """
+    picks = ["photo_exif.jpg", "shot.png", "picture.webp",
+             "no_meta_at_all.jpg", "burst_a.jpg", "burst_b.jpg"]
+    src = Path(corpus)
+    room = work / "renametest"
+    state = work / "state"
+    shutil.rmtree(room, ignore_errors=True)
+    shutil.rmtree(state, ignore_errors=True)
+    room.mkdir(parents=True)
+    state.mkdir(parents=True)
+    copied = 0
+    for name in picks:
+        f = src / name
+        if f.exists():
+            shutil.copy2(f, room / name)
+            copied += 1
+    if copied < 3:
+        return False, "样本不足"
+
+    env = dict(os.environ, SHUTTERSORT_STATE_DIR=str(state))
+    r = subprocess.run([str(binary), "rename-test", "--dir", str(room)],
+                       capture_output=True, text=True, env=env)
+    fails = [ln for ln in r.stdout.splitlines() if "✗" in ln]
+    if r.returncode == 0 and not fails:
+        n = len([ln for ln in r.stdout.splitlines() if "落盘：" in ln])
+        return True, f"{copied} 个文件 / {n} 次断言"
+    print(r.stdout[-2000:])
+    print(r.stderr[-800:])
+    return False, f"{len(fails)} 项断言失败"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="", help="用这个目录当样本（默认自动造一批）")
@@ -159,6 +196,15 @@ def main():
             print()
         else:
             rows.append((name, "✓ 一致", f"{total} 项"))
+
+    # ---- 3.5 改名 / 撤销 / CSV / 幂等自检
+    #      这几条路只有界面点得到，命令行里补一个闸门：真改一遍再撤回来。
+    ok, detail = rename_selftest(binary, target, work)
+    if ok:
+        rows.append(("改名 / 撤销 / 幂等自检", "✓ 通过", detail))
+    else:
+        failed += 1
+        rows.append(("改名 / 撤销 / 幂等自检", "✗ 失败", detail))
 
     # ---- 4. 结果表
     w = max(len(r[0]) for r in rows)
