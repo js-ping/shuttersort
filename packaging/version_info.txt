@@ -3,8 +3,8 @@
 # PyInstaller 靠第一行的 "# UTF-8" 标记识别编码，别删。
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 4, 0, 0),
-    prodvers=(1, 4, 0, 0),
+    filevers=(1, 5, 0, 0),
+    prodvers=(1, 5, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -17,12 +17,12 @@ VSVersionInfo(
       StringTable('080404B0', [
         StringStruct('CompanyName', 'js-ping'),
         StringStruct('FileDescription', '拍摄时间改名器 —— 把 iPhone 的拍摄时间写回文件名'),
-        StringStruct('FileVersion', '1.4.0'),
+        StringStruct('FileVersion', '1.5.0'),
         StringStruct('InternalName', 'ShutterSort'),
         StringStruct('LegalCopyright', 'MIT License'),
         StringStruct('OriginalFilename', 'ShutterSort.exe'),
         StringStruct('ProductName', '拍摄时间改名器 (ShutterSort)'),
-        StringStruct('ProductVersion', '1.4.0')
+        StringStruct('ProductVersion', '1.5.0')
       ])
     ]),
     VarFileInfo([VarStruct('Translation', [2052, 1200])])

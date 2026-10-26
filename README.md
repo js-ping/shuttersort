@@ -9,6 +9,8 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-8a63d2.svg)
 
+![macOS](https://img.shields.io/badge/macOS-14%2B%20%E5%8E%9F%E7%94%9F%20SwiftUI-000000.svg)
+
 ![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)
 
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
@@ -59,8 +61,8 @@ IMG_8741.HEIC   →  IMG_20240506_154421.HEIC
 | 重复执行结果稳定（幂等）                            |   常出问题   |                ✅                |
 | **同秒连拍按亚秒排先后**                          |    按读取顺序  |      ✅ 读 `SubSecTime`，编号跟快门一致      |
 | **时间校正**（相机钟错 / 忘了调时区）                 |   少有支持   |     ✅ ±天时分，还能按参考文件反推差多少     |
-| 安装依赖                                    |   要装一堆包  |      ✅ **零依赖**，纯 Python 标准库     |
-| 平台                                      |  多半只支持一个 | ✅ Windows / macOS / Linux 同一份代码 |
+| 安装依赖                                    |   要装一堆包  | ✅ **零第三方依赖**（macOS 原生 / 其它平台纯标准库） |
+| 平台                                      |  多半只支持一个 | ✅ Windows / macOS / Linux，macOS 为原生应用 |
 
 ## 界面
 
@@ -142,23 +144,30 @@ GitHub 就会开真实的 Windows 和 macOS 机器各打一份，自动挂到对
 
 ### macOS
 
-**方式一：下载打包好的 .app（最省事，仅 Apple 芯片）**
+**方式一：下载原生应用（最省事）**
 
-到 [Releases](https://github.com/js-ping/shuttersort/releases) 下载 `ShutterSort-macOS-arm64.dmg`，
-双击挂载后把 App 拖到旁边的「应用程序」就装好了。单文件、不需要装 Python。
+到 [Releases](https://github.com/js-ping/shuttersort/releases) 下载
+`ShutterSort-<版本>-macOS-universal.dmg`，双击挂载，把 App 拖到旁边的「应用程序」就装好了。
 
-不想挂载磁盘映像的话，同一个 Release 里也有 `.zip` 版本，解压后同样拖进「应用程序」。
+- 这是**原生 SwiftUI 应用**，不是把网页塞进窗口。1.8 MB（Apple 芯片）/ 3.4 MB（通用二进制），秒开
+- **Apple 芯片和 Intel 芯片都能用**（通用二进制）
+- 不需要装 Python，不需要 exiftool，不需要 ffmpeg
+- 系统要求 **macOS 14 (Sonoma) 或更新**
 
-支持 M1 / M2 / M3 / M4，系统要求 macOS 11+。**Intel 芯片的 Mac 用不了这个包**，走下面的方式二。
+不想挂载磁盘映像的话，同一个 Release 里也有 `.zip`，解压后同样拖进「应用程序」。
 
 > 第一次打开如果提示「无法打开，因为 Apple 无法验证此 App」：
 > 在访达里**右键点 App → 选「打开」→ 再点「打开」**就放行了，只需一次。  
 > 或者跑 `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`。  
-> 这是没买苹果开发者签名的正常现象，dmg 和 zip 里都附了一份说明。
+> 这是没买苹果开发者签名的正常现象，dmg 里也附了一份《安装说明.txt》。
+
+**macOS 13 及更早系统**：原生版用不了，请下
+[v1.4.0](https://github.com/js-ping/shuttersort/releases/tag/v1.4.0) 的 Python 版安装包，
+或者走下面的源码方式。
 
 **方式二：从源码跑**
 
-要求：Python 3.8+（macOS 自带）。
+要求：Python 3.8+（macOS 自带）。走的是原来的 Python 版界面，功能与原生版一致。
 
 ```bash
 git clone https://github.com/js-ping/shuttersort.git
@@ -166,18 +175,26 @@ cd shuttersort
 ./start.command          # 双击这个文件也行
 ```
 
-**方式三：自己打包成 .app**
+**方式三：自己编原生版**
 
-原生窗口、关窗即退出、目标电脑不需要装 Python：
+只要能跑 `swiftc` 就行（`xcode-select --install` 装命令行开发者工具即可，**不需要 Xcode**）：
 
 ```bash
-python3 -m pip install pyinstaller pywebview   # 只需一次
-cd packaging && ./build_app.command
+cd native
+./build.sh --universal --zip --dmg
 ```
 
-跑完会得到三样：`packaging/dist/ShutterSort.app`，可以直接发给别人的
-`packaging/dist/ShutterSort-macOS-arm64.dmg`（挂载即拖），以及备用的
-`packaging/dist/ShutterSort-macOS-arm64.zip`。三种都带首次打开说明。
+跑完在 `native/dist/` 里得到三样：可以直接双击的 `ShutterSort.app`、
+发给别人的 `ShutterSort-<版本>-macOS-universal.dmg` 和同名 `.zip`。
+
+想验证「原生版和 Python 版读出来的时间一模一样」，再跑一条：
+
+```bash
+python3 native/tests/run_parity.py
+```
+
+会自动造一批覆盖各种格式的样本（含 HEIC、WebP、大端 TIFF、带时区偏移的 EXIF、子目录同秒冲突），
+然后 14 个场景逐字段对照，任何一个字段不一致都会报错退出。
 
 ### Linux
 
@@ -189,7 +206,8 @@ cd shuttersort
 
 ### 三个平台都一样
 
-**没有 `pip install`，没有虚拟环境，没有配置文件** —— 全部功能只用 Python 标准库实现。  
+**没有 `pip install`，没有虚拟环境，没有配置文件。** macOS 原生版只用 Swift 与系统框架，
+Windows / Linux 是纯 Python 标准库。  
 唯一的差别是「选文件夹」对话框和 HEIC 缩略图会调用各自系统的现成工具，见下。
 
 ### 可选增强（全都可以不装）
@@ -197,8 +215,11 @@ cd shuttersort
 | 工具                    | 作用                                     | 没装会怎样          |
 | --------------------- | -------------------------------------- | -------------- |
 | `exiftool`            | 第一优先级的元数据提取，覆盖度最高                      | 自动改用内置解析器，功能完整 |
-| `ffmpeg`              | 视频缩略图预览；HEIC 缩略图（备用）                   | 显示 🎬 图标，不影响改名 |
+| `ffmpeg`              | 视频缩略图预览；HEIC 缩略图（备用，Windows / Linux 需要）    | 显示 🎬 图标，不影响改名 |
 | `magick`（ImageMagick） | HEIC 缩略图（Windows / Linux 上不装它就只能看占位图标） | 显示占位图标，不影响改名   |
+
+> **macOS 原生版这三个全都不用装**：缩略图走系统 ImageIO（HEIC/HEIF/RAW/TIFF 全认）
+> 和 AVFoundation（视频抽第 0.5 秒的帧），exiftool 装了会更准、不装也完整。
 
 ```bash
 brew install exiftool ffmpeg                     # macOS
@@ -318,19 +339,24 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick   # Debian / Ubuntu
 
 ```
 ShutterSort/
-├── start.command / start.bat  ← 双击启动（macOS·Linux / Windows）
+├── native/                    ← macOS 原生版（SwiftUI，v1.5.0 起）
+│   ├── build.sh               ← 一条命令编出 .app + zip + dmg
+│   ├── Sources/Core/          ← 时间戳解析引擎（Swift 重写，含 TIFF/EXIF/ISOBMFF 解析）
+│   ├── Sources/UI/            ← SwiftUI 界面（三栏、表格、五个弹窗、说明书）
+│   ├── Sources/CLI/           ← 对照测试用的命令行入口
+│   └── tests/run_parity.py    ← 原生版 vs Python 版逐字段对照（14 个场景）
+├── start.command / start.bat  ← 双击启动（macOS·Linux / Windows，Python 版）
 ├── build_exe.bat              ← 双击打包出 Windows 免安装 exe
 ├── src/
-│   ├── media_time.py          ← 时间戳解析引擎（核心）
+│   ├── media_time.py          ← 时间戳解析引擎（Python 版，Windows / Linux 在用）
 │   ├── server.py              ← 本地服务 + 全部接口
-│   ├── app_main.py            ← 原生窗口入口（macOS .app / Windows .exe）
+│   ├── app_main.py            ← 窗口入口（Windows .exe 用）
 │   └── static/index.html      ← 界面（单文件，无构建步骤）
 ├── tests/
 │   ├── selftest.py            ← 72 项回归自检
 │   └── run_tests.command/.bat ← 双击跑自检
-├── packaging/                 ← 打包脚本 + 图标（make_ico.py 出 .ico）
-│   ├── build_app.command      ← 双击打包出 macOS .app + 可发布的 zip
-│   ├── mac/FIRST-RUN.txt      ← 打进 zip 的《首次打开说明》
+├── packaging/                 ← Windows 打包 + 图标（make_ico.py 出 .ico）
+│   ├── version_info.txt       ← 打进 exe 的版本资源
 │   └── ci/RELEASE_NOTES.md    ← Release 正文（发版前改这一份）
 ├── .github/workflows/         ← 打标签自动打出 exe 和 .app，一起挂到 Release
 ├── screenshots/               ← README 截图
@@ -345,6 +371,16 @@ python tests\selftest.py        # Windows
 ```
 
 也可以双击 `tests/run_tests.command`（macOS/Linux）或 `tests/run_tests.bat`（Windows）。
+
+macOS 原生版另有自己的闸门 —— 它和 Python 版必须读出一模一样的结果：
+
+```bash
+python3 native/tests/run_parity.py          # 自动造样本，14 个场景逐字段比
+python3 native/tests/run_parity.py --dir ~/Pictures/某相册   # 换成你自己的照片
+```
+
+一条命令会编出对照用的 CLI、造出覆盖 9 种格式的样本、把两版的
+时间 / 亚秒 / 来源 / 新文件名 / 冲突标记全量比一遍，不一致就非零退出。
 
 72 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、  
 HTTP 全链路（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、勾选改名（只动选中的、

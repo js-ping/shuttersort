@@ -7,6 +7,7 @@
 *(Chinese name: 拍摄时间改名器)*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-8a63d2.svg)](LICENSE)
+[![macOS](https://img.shields.io/badge/macOS-14%2B%20native%20SwiftUI-000000.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
@@ -43,14 +44,16 @@ and the filename *is* the timestamp, so search, backup and sync all just work.
 
 - **Auditable timestamps** — every file is tagged with *where* its time came from. No black boxes.
 - **Pick your scope** — scan a whole folder, or hand-pick a few files (native multi-select dialog or drag & drop). Checkbox per row on top of that.
-- **Zero dependencies** — pure Python standard library. No `pip install`, no venv, no config.
+- **Zero third-party dependencies** — the macOS build is pure Swift + system frameworks,
+  Windows / Linux are pure Python standard library. No `pip install`, no venv, no config.
 - **Self-contained parsers** — TIFF/EXIF, XMP, PNG chunks, WebP and ISOBMFF (MP4/MOV/HEIC) are all parsed in-house, so nothing breaks when external tools are missing.
 - **Deterministic & idempotent** — re-running on an already-renamed folder reports "no change" instead of appending `_1`.
 - **Burst-aware ordering** — sub-second timestamps (`SubSecTime`) decide who gets `_1` vs `_2`, so numbering follows the shutter, not the directory listing.
 - **Time correction** — shift all names by ±days/hours/minutes for a wrong camera clock, or derive the offset from a single reference file. Filenames only; EXIF is never rewritten.
 - **Persistent undo** — every run writes a JSON history file; undo works across sessions.
 - **Safe by default** — conflict handling with `_1`/`_2` suffixes, overwrite protection in both rename and undo directions, and no-timestamp files are skipped rather than guessed.
-- **Cross-platform** — one codebase for Windows, macOS and Linux. Same features, same UI, no per-platform forks.
+- **Cross-platform** — Windows and Linux run one Python codebase; macOS is a real native SwiftUI app
+  (since v1.5.0). Same features, same behaviour, verified field by field.
 
 ## Screenshots
 
@@ -126,20 +129,28 @@ the `.app` on real Windows and macOS runners and attaches them to the release.)
 
 ### macOS
 
-**Option 1 — grab the prebuilt `.app` (easiest, Apple silicon only)**
+**Option 1 — download the native app (easiest)**
 
-Download `ShutterSort-macOS-arm64.dmg` from [Releases](https://github.com/js-ping/shuttersort/releases),
-double-click to mount, then drag the app onto the `Applications` shortcut. No Python needed.
+Grab `ShutterSort-<version>-macOS-universal.dmg` from
+[Releases](https://github.com/js-ping/shuttersort/releases), double-click to mount, then drag the app
+onto the `Applications` shortcut.
+
+- A **real native SwiftUI app**, not a web page in a window: 1.8 MB (Apple silicon) /
+  3.4 MB (universal), opens instantly
+- **Universal binary — Apple silicon and Intel**
+- No Python, no exiftool, no ffmpeg needed
+- Requires **macOS 14 (Sonoma) or newer**
 
 A `.zip` is published alongside it for environments where mounting a disk image is not an option.
 
-Supports M1 / M2 / M3 / M4, macOS 11+. **Intel Macs can't run this build** — use Option 2.
-
 > If macOS says *"Apple cannot check it for malicious software"*: **right-click the app → Open → Open**.
 > That's a one-time approval. Or run `xattr -dr com.apple.quarantine /Applications/ShutterSort.app`.
-> It's the normal cost of not buying an Apple Developer certificate; the dmg and zip both ship with a note explaining this.
+> It's the normal cost of not buying an Apple Developer certificate.
 
-**Option 2 — run from source**
+**On macOS 13 or older:** the native build won't run. Use the Python build from
+[v1.4.0](https://github.com/js-ping/shuttersort/releases/tag/v1.4.0), or Option 2 below.
+
+**Option 2 — run from source** (the original Python UI, feature-identical)
 
 Python 3.8+ (built in on macOS):
 
@@ -149,13 +160,27 @@ cd shuttersort
 ./start.command
 ```
 
-**Option 3 — build your own `.app`** (native window, no Python required on the machine):
+**Option 3 — build the native app yourself**
+
+All you need is `swiftc` (`xcode-select --install` for the Command Line Tools — **Xcode is not required**):
 
 ```bash
-python3 -m pip install pyinstaller pywebview   # once
-cd packaging
-./build_app.command
+cd native
+./build.sh --universal --zip --dmg
 ```
+
+You get `native/dist/ShutterSort.app` plus a shareable
+`ShutterSort-<version>-macOS-universal.dmg` and `.zip`.
+
+To prove the native build parses exactly what the Python build parses:
+
+```bash
+python3 native/tests/run_parity.py
+```
+
+It builds the comparison CLI, generates a corpus covering 9 formats (HEIC, WebP, big-endian TIFF,
+EXIF with timezone offsets, same-second collisions in subfolders), then compares 14 scenarios
+field by field — any mismatch exits non-zero.
 
 ### Linux
 
@@ -175,6 +200,9 @@ no `pip install`, no venv, no config file.
 | `exiftool` | Highest-coverage metadata extraction | Falls back to built-in parsers, fully functional |
 | `ffmpeg` | Video thumbnails (and a HEIC fallback) | Shows a 🎬 icon; renaming unaffected |
 | `magick` (ImageMagick) | HEIC thumbnails on Windows / Linux | Placeholder icon; renaming unaffected |
+
+> **The native macOS build needs none of them.** Thumbnails go through system ImageIO
+> (HEIC/HEIF/RAW/TIFF) and AVFoundation (a frame at 0.5 s for videos).
 
 > The **folder and file pickers** use whatever the OS already provides — `osascript` on macOS,
 > PowerShell + .NET (`OpenFileDialog { Multiselect = $true }`, no mojibake on non-ASCII paths)
@@ -259,6 +287,16 @@ python tests\selftest.py        # Windows
 
 Or just double-click `tests/run_tests.command` (macOS/Linux) / `tests/run_tests.bat` (Windows).
 
+The native macOS build has its own gate — it must read exactly what the Python build reads:
+
+```bash
+python3 native/tests/run_parity.py                          # auto-generated corpus, 14 scenarios
+python3 native/tests/run_parity.py --dir ~/Pictures/some-album   # or point it at your own photos
+```
+
+It compares timestamps, sub-seconds, source labels, target names, conflict markers and archive
+folders field by field, and exits non-zero on any difference. CI runs it before packaging.
+
 72 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).
 Everything runs in a temp directory and cleans itself up.
@@ -267,17 +305,22 @@ Everything runs in a temp directory and cleans itself up.
 
 ```
 ShutterSort/
-├── start.command / start.bat  ← double-click launcher (macOS·Linux / Windows)
+├── native/                    ← macOS native app (SwiftUI, since v1.5.0)
+│   ├── build.sh               ← one command → .app + zip + dmg
+│   ├── Sources/Core/          ← parsing engine, rewritten in Swift (TIFF/EXIF/ISOBMFF)
+│   ├── Sources/UI/            ← SwiftUI interface
+│   ├── Sources/CLI/           ← CLI entry used by the parity tests
+│   └── tests/run_parity.py    ← native vs Python, field-by-field, 14 scenarios
+├── start.command / start.bat  ← double-click launcher (macOS·Linux / Windows, Python build)
 ├── build_exe.bat              ← double-click: build the Windows standalone exe
 ├── src/
-│   ├── media_time.py          ← timestamp parsing engine (the core)
+│   ├── media_time.py          ← timestamp parsing engine (Python build: Windows / Linux)
 │   ├── server.py              ← local server + all endpoints
-│   ├── app_main.py            ← native-window entry point (.app / .exe)
+│   ├── app_main.py            ← window entry point (Windows .exe)
 │   └── static/index.html      ← UI (single file, no build step)
 ├── tests/selftest.py          ← 72 regression checks
-├── packaging/                 ← build scripts + icons (make_ico.py writes the .ico)
-│   ├── build_app.command      ← builds the macOS .app + dmg + zip
-│   ├── mac/FIRST-RUN.txt      ← the "first launch" note packed into the dmg/zip
+├── packaging/                 ← Windows packaging + icons (make_ico.py writes the .ico)
+│   ├── version_info.txt       ← version resource embedded in the exe
 │   └── ci/RELEASE_NOTES.md    ← release body (edit this one before a release)
 ├── .github/workflows/         ← tag a release → exe + .app built and attached
 └── rename-history/            ← created at runtime: undo records (don't delete)

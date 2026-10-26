@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>ShutterSort</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.js-ping.shuttersort</string>
+    <key>CFBundleName</key>
+    <string>拍摄时间改名器</string>
+    <key>CFBundleDisplayName</key>
+    <string>拍摄时间改名器</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.5.0</string>
+    <key>CFBundleVersion</key>
+    <string>1.5.0</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.photography</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License · 全部在本机处理，不联网、不上传</string>
+    <!-- 用户要在访达里选任意位置的文件夹，用标准 OpenPanel 不需要额外权限声明；
+         这里只声明「非沙盒」，方便直接读用户选中的目录 -->
+    <key>LSFileQuarantineEnabled</key>
+    <false/>
+</dict>
+</plist>

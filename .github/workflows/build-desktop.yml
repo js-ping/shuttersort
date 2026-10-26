@@ -80,47 +80,54 @@ jobs:
           if-no-files-found: error
 
   # ----------------------------------------------------------------- macOS
+  # 从 v1.5.0 起，macOS 版不再是「Python + 内嵌浏览器」，而是原生 SwiftUI。
+  # 所以这个 job 不再装 PyInstaller / pywebview，改用系统自带的 swiftc 直接编。
+  # Python 只留下一个用途：跑 tests/selftest.py 和逐字段对照测试。
   macos:
-    name: 构建 ShutterSort.app
-    runs-on: macos-14          # Apple 芯片，产出的就是 arm64
+    name: 构建 ShutterSort.app（原生 SwiftUI）
+    runs-on: macos-14          # Apple 芯片；这里交叉编出 arm64 + x86_64 通用二进制
 
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
 
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: 安装打包依赖
+      - name: 看一眼工具链
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller pywebview
+          swift --version
+          xcodebuild -version || true
+          python3 --version
 
-      - name: 跑自检（72 项）
-        run: python tests/selftest.py
+      - name: 跑 Python 版自检（72 项，确认参照实现本身是好的）
+        run: python3 tests/selftest.py
 
-      - name: 打包 .app + dmg
-        working-directory: packaging
-        # 直接调用打包脚本，不再在 CI 里另抄一份 PyInstaller 参数 ——
-        # 抄一份的后果已经踩过：本地把版本号写进了 Info.plist，CI 那份没跟着改，
-        # 发出去的 .app 版本依然是 0.0.0。单一真相源。
-        # 脚本末尾有个 read -n 1（给人按任意键的），喂个回车让它过。
+      - name: 逐字段对照（原生版 vs Python 版，14 个场景）
+        working-directory: native
+        # 这是发布前最重要的一道闸：解析器是重写的，只有逐字段零差异才敢发。
+        # 任何一处不一致都会让这个 job 失败，后面打包和发布都不会跑。
+        run: python3 tests/run_parity.py
+
+      - name: 编译原生版 + 打 zip / dmg
+        working-directory: native
         run: |
           set -eux
-          export SHUTTERSORT_PY="$(command -v python)"
-          chmod +x build_app.command
-          printf '\n' | ./build_app.command
+          chmod +x build.sh
+          ./build.sh --universal --zip --dmg
           ls -lh dist/
+
+      - name: 冒烟测试（能启动并报出版本与架构）
+        working-directory: native
+        run: |
+          set -eux
+          ./dist/ShutterSort.app/Contents/MacOS/ShutterSort --version
+          lipo -archs dist/ShutterSort.app/Contents/MacOS/ShutterSort
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: ShutterSort-macos
           path: |
-            packaging/dist/ShutterSort-macOS-arm64.dmg
-            packaging/dist/ShutterSort-macOS-arm64.zip
+            native/dist/*.dmg
+            native/dist/*.zip
           if-no-files-found: error
 
   # --------------------------------------------------------------- 发布
@@ -149,8 +156,8 @@ jobs:
         with:
           files: |
             artifacts/ShutterSort-windows/ShutterSort.exe
-            artifacts/ShutterSort-macos/ShutterSort-macOS-arm64.dmg
-            artifacts/ShutterSort-macos/ShutterSort-macOS-arm64.zip
+            artifacts/ShutterSort-macos/*.dmg
+            artifacts/ShutterSort-macos/*.zip
           # 发布说明单独放在 packaging/ci/RELEASE_NOTES.md，一次只维护一份。
           # 发新版本前记得先把它改成当版的内容。
           body_path: packaging/ci/RELEASE_NOTES.md
