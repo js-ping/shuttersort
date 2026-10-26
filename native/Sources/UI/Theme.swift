@@ -27,15 +27,37 @@ enum Theme {
         return .teal
     }
 
-    /// 来源标签的短名（表格里列宽有限，长标签要折行很难看）
+    /// 来源标签的短名。
+    ///
+    /// 表格里「来源」这一列只有 90pt 左右，而完整标签能长到
+    /// `exiftool·EXIF:DateTimeOriginal`（28 个字符）。这里做减法，
+    /// 完整标签仍然留在 tooltip 里，鼠标一悬停就能看到原文 ——
+    /// 缩短是为了「一眼能扫」，不是为了藏信息。
     static func shortSource(_ source: String) -> String {
         if source == "缺失" { return "缺失" }
         var s = source
-        if s.hasPrefix("exiftool·") { s = String(s.dropFirst("exiftool·".count)) }
-        s = s.replacingOccurrences(of: "内嵌·", with: "")
-        s = s.replacingOccurrences(of: "旁车·", with: "")
-        s = s.replacingOccurrences(of: "文件名·", with: "")
-        s = s.replacingOccurrences(of: "文件系统·", with: "")
+        for junk in ["exiftool·", "内嵌·", "旁车·"] {
+            s = s.replacingOccurrences(of: junk, with: "")
+        }
+        s = s.replacingOccurrences(of: "文件名·", with: "名·")
+        s = s.replacingOccurrences(of: "文件系统·", with: "文件·")
+
+        // 常见标签名换成短写法
+        let short: [(String, String)] = [
+            ("EXIF:DateTimeOriginal", "EXIF·Original"),
+            ("EXIF:DateTimeDigitized", "EXIF·Digitized"),
+            ("EXIF:DateTime", "EXIF"),
+            ("QuickTime:CreateDate", "QuickTime"),
+            ("XMP:CreateDate", "XMP·Create"),
+            ("mvhd 创建时间", "mvhd"),
+            ("mdhd 创建时间", "mdhd"),
+            ("Google Takeout JSON", "Takeout JSON"),
+        ]
+        for (full, brief) in short {
+            s = s.replacingOccurrences(of: full, with: brief)
+        }
+        // 文件名规则后面的格式示例（连续 YYYYMMDDHHMMSS）对判断来源没帮助
+        if let r = s.range(of: " YYYY") { s = String(s[s.startIndex..<r.lowerBound]) }
         return s
     }
 }

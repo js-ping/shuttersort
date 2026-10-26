@@ -127,12 +127,12 @@ struct DetailPane: View {
                     .truncationMode(.middle)
                     .foregroundStyle(item.status == .skip ? Color.secondary : Color.primary)
             }
-            .width(min: 104, ideal: 150)
+            .width(min: 96, ideal: 140)
 
             TableColumn("新文件名") { item in
                 NewNameCell(item: item)
             }
-            .width(min: 128, ideal: ColWidth.newNameIdeal)
+            .width(min: 120, ideal: ColWidth.newNameIdeal)
 
             TableColumn("拍摄时间") { item in
                 TimeCell(item: item)
@@ -147,7 +147,7 @@ struct DetailPane: View {
                     .foregroundStyle(Theme.sourceColor(item.source))
                     .help(item.source)
             }
-            .width(min: 74, ideal: 104)
+            .width(min: 66, ideal: 90)
 
             TableColumn("大小") { item in
                 Text(item.sizeText)
@@ -155,7 +155,7 @@ struct DetailPane: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .width(min: 50, ideal: 60)
+            .width(min: 46, ideal: 54)
 
             TableColumn("状态") { item in
                 Text(item.status.text)
@@ -163,7 +163,7 @@ struct DetailPane: View {
                     .lineLimit(1)
                     .foregroundStyle(statusColor(item.status))
             }
-            .width(min: 58, ideal: 70)
+            .width(min: 56, ideal: 66)
         }
         .tableStyle(.inset)
         .contextMenu(forSelectionType: String.self) { paths in
