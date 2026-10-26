@@ -296,6 +296,19 @@ python3 native/tests/run_parity.py --dir ~/Pictures/some-album   # or point it a
 
 It compares timestamps, sub-seconds, source labels, target names, conflict markers and archive
 folders field by field, and exits non-zero on any difference. CI runs it before packaging.
+It then really renames six sample files, re-scans to prove idempotency, exports the CSV and
+undoes the batch — so the two riskiest paths are covered too.
+
+The UI can be inspected without looking at a screen:
+
+```bash
+native/tests/snapshots.sh                 # light
+native/tests/snapshots.sh --dark          # dark
+```
+
+It renders the sidebar, table cells, the detail pane and all five sheets to PNGs
+(`$TMPDIR/shuttersort-snapshots/out`) — handy for checking column widths, clipped text
+and contrast in both appearances.
 
 72 regression checks cover the parsers, filename rules, the naming engine, the full HTTP flow
 (scan → preview → rename → idempotent re-scan → undo) and API security (path traversal protection).

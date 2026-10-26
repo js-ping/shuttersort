@@ -25,19 +25,28 @@ struct SidebarView: View {
     private var scopeCard: some View {
         Card(index: 1, title: "选择范围") {
             VStack(alignment: .leading, spacing: 8) {
-                Text(state.scopeDescription)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(state.folder == nil && state.pickedFiles.isEmpty
-                                     ? .secondary : .primary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.primary.opacity(0.055))
-                    )
+                // 路径 + 清空挤在同一行：清空自己占一行的样子太浪费纵向空间，
+                // 而且一个蓝色链接孤零零摆在那儿，看着像主要动作。
+                HStack(spacing: 6) {
+                    Text(state.scopeDescription)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(state.folder == nil && state.pickedFiles.isEmpty
+                                         ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.primary.opacity(0.055))
+                        )
+                    if state.folder != nil || !state.pickedFiles.isEmpty {
+                        Button("清空") { state.clearScope() }
+                            .controlSize(.small)
+                            .fixedSize()
+                    }
+                }
 
                 HStack(spacing: 7) {
                     Button {
@@ -52,15 +61,6 @@ struct SidebarView: View {
                     }
                 }
                 .controlSize(.small)
-
-                HStack(spacing: 12) {
-                    if !state.folder.isNilOrEmpty || !state.pickedFiles.isEmpty {
-                        Button("清空") { state.clearScope() }
-                            .buttonStyle(.link)
-                            .font(.system(size: 11))
-                    }
-                    Spacer(minLength: 0)
-                }
 
                 Toggle("包含子文件夹", isOn: $state.recursive)
                     .toggleStyle(.checkbox)
@@ -162,15 +162,13 @@ struct SidebarView: View {
                 .controlSize(.small)
                 .onChange(of: state.fallback) { _, _ in state.rebuildPlan(immediate: true) }
 
-                Toggle("用 exiftool 增强（装了就用）", isOn: $state.useExifTool)
+                // 版本号并进标签里，省一行 —— 右下角那条状态栏本来也一直显示着它
+                Toggle("用 exiftool 增强（\(state.exifToolAvailable ? state.exifToolVersion : "未安装")）",
+                       isOn: $state.useExifTool)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 11.5))
                     .disabled(!state.exifToolAvailable)
                     .onChange(of: state.useExifTool) { _, _ in state.startScan() }
-
-                Text(state.exifToolInfo)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
 
                 Divider().padding(.vertical, 1)
 
@@ -224,7 +222,7 @@ struct SidebarView: View {
                     .controlSize(.small)
                     .disabled(state.selection.isEmpty)
 
-                    Hint(text: "所有文件的时间都 \(state.offsetLabel)，再拿去算文件名。"
+                    Hint(text: "文件名按「原时间 \(state.offsetLabel)」生成。"
                          + "只影响这次改名，不会改动文件里的元数据。")
                 }
             }

@@ -186,16 +186,28 @@ struct HelpSheet: View {
             .padding(.top, 2)
     }
 
+    /// 说明书正文里的 `**强调**` 要真加粗，不能把星号原样吐出来。
+    /// 只处理这一种标记：不引入完整 Markdown，免得文件名里的下划线被当成强调。
+    private func rich(_ text: String, size: CGFloat, weight: Font.Weight) -> Text {
+        var out = Text("")
+        var bold = false
+        for chunk in text.components(separatedBy: "**") {
+            out = out + Text(chunk).font(.system(size: size,
+                                                weight: bold ? .semibold : weight))
+            bold.toggle()
+        }
+        return out
+    }
+
     private func p(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11.5))
+        rich(text, size: 11.5, weight: .regular)
             .foregroundStyle(.secondary)
             .lineSpacing(2.5)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private func box(_ text: String, warn: Bool = false) -> some View {
-        Text(text)
+        rich(text, size: 11, weight: .regular)
             .font(.system(size: 11))
             .foregroundStyle(warn ? Color.orange : Color.secondary)
             .lineSpacing(2.5)

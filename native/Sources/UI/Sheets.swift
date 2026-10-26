@@ -359,8 +359,15 @@ struct CalibrateSheet: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
 
-    @State private var date = Date()
-    @State private var seconds = 0
+    // 用六个数字框而不是 DatePicker：DatePicker 跟随系统区域格式，
+    // 在这台机器上显示成「3/ 4/2022 上午 5:06」，跟界面里到处用的
+    // YYYY-MM-DD HH:MM:SS 两套写法混在一起，还容易把 3/4 误读成 4 月 3 日。
+    @State private var year = 0
+    @State private var month = 1
+    @State private var day = 1
+    @State private var hour = 0
+    @State private var minute = 0
+    @State private var second = 0
     @State private var prepared = false
 
     var body: some View {
@@ -397,26 +404,27 @@ struct CalibrateSheet: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("它的真实拍摄时间是什么")
                         .font(.system(size: 11, weight: .medium))
-                    HStack(spacing: 8) {
-                        DatePicker("", selection: $date,
-                                   displayedComponents: [.date, .hourAndMinute])
-                            .labelsHidden()
-                            .datePickerStyle(.field)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("秒").font(.system(size: 10)).foregroundStyle(.secondary)
-                            TextField("", value: $seconds, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 46)
-                                .multilineTextAlignment(.center)
-                                .font(.system(size: 11.5, design: .monospaced))
-                        }
+                    HStack(alignment: .bottom, spacing: 6) {
+                        numField("年", $year, width: 62)
+                        numField("月", $month, width: 42)
+                        numField("日", $day, width: 42)
+                        Spacer().frame(width: 8)
+                        numField("时", $hour, width: 42)
+                        numField("分", $minute, width: 42)
+                        numField("秒", $second, width: 42)
+                        Spacer(minLength: 0)
+                    }
+                    if !valid, let why = invalidReason {
+                        Text(why)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.orange)
                     }
                 }
 
-                Text("填的是这张照片**真正**拍下的时刻 —— 比如你知道那顿饭是 19:30 吃的，"
+                Text("填的是这张照片真正拍下的时刻 —— 比如你知道那顿饭是 19:30 吃的，"
                      + "而文件说是 11:30，程序就会算出 +8 小时的偏移，整批一起平移。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
@@ -439,6 +447,7 @@ struct CalibrateSheet: View {
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
+                .disabled(!valid)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
@@ -447,21 +456,47 @@ struct CalibrateSheet: View {
         .onAppear(perform: prepare)
     }
 
+    private func numField(_ label: String, _ value: Binding<Int>, width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+            // 用 SignedIntField 而不是 TextField(value:format:)：数字格式会给
+            // 四位数加千位分隔符，年份会变成「2,022」
+            SignedIntField(value: value) {}
+                .frame(width: width)
+        }
+    }
+
     private func prepare() {
         guard !prepared, let t = state.calibrateItem?.originalTime else { return }
         prepared = true
-        if let d = t.date(in: .current) {
-            date = d
-        }
-        seconds = t.second
+        year = t.year; month = t.month; day = t.day
+        hour = t.hour; minute = t.minute; second = t.second
     }
 
+    /// 时间合不合法（2 月 30 日这类要挡掉，不能把错的偏移算进去）
+    private var invalidReason: String? {
+        if year < 1900 || year > 2200 { return "年份看起来不对（\(year)）" }
+        if month < 1 || month > 12 { return "月份要在 1–12 之间" }
+        if day < 1 || day > 31 { return "日要在 1–31 之间" }
+        if hour < 0 || hour > 23 { return "小时要在 0–23 之间" }
+        if minute < 0 || minute > 59 { return "分钟要在 0–59 之间" }
+        if second < 0 || second > 59 { return "秒要在 0–59 之间" }
+        var c = DateComponents()
+        c.year = year; c.month = month; c.day = day
+        c.hour = hour; c.minute = minute; c.second = second
+        if WallTime(components: c)?.isPlausible != true {
+            return "这个日期不存在（\(month) 月没有 \(day) 号）"
+        }
+        return nil
+    }
+
+    private var valid: Bool { invalidReason == nil }
+
     private func apply() {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = .current
-        var c = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        c.second = max(0, min(59, seconds))
-        guard let t = WallTime(components: c) else { return }
+        var c = DateComponents()
+        c.year = year; c.month = month; c.day = day
+        c.hour = hour; c.minute = minute; c.second = second
+        guard let t = WallTime(components: c), t.isPlausible else { return }
         state.applyCalibration(trueTime: t)
     }
 }

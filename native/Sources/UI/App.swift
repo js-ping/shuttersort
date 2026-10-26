@@ -28,7 +28,7 @@ struct ShutterSortApp: App {
                 .environmentObject(state)
                 .frame(minWidth: 1040, minHeight: 620)
         }
-        .defaultSize(width: 1360, height: 820)
+        .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {

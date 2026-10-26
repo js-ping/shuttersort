@@ -106,6 +106,13 @@ struct DetailPane: View {
 
     // MARK: - 表格
 
+    /// 列宽。快照工具也读这里，免得改了界面而验收脚本还按旧宽度渲染。
+    enum ColWidth {
+        static let timeMin: CGFloat = 176
+        static let timeIdeal: CGFloat = 186
+        static let newNameIdeal: CGFloat = 188
+    }
+
     private var table: some View {
         Table(state.visiblePlan, selection: $state.selection) {
             TableColumn("") { item in
@@ -125,12 +132,12 @@ struct DetailPane: View {
             TableColumn("新文件名") { item in
                 NewNameCell(item: item)
             }
-            .width(min: 128, ideal: 176)
+            .width(min: 128, ideal: ColWidth.newNameIdeal)
 
             TableColumn("拍摄时间") { item in
                 TimeCell(item: item)
             }
-            .width(min: 154, ideal: 168)
+            .width(min: ColWidth.timeMin, ideal: ColWidth.timeIdeal)
 
             TableColumn("来源") { item in
                 Text(Theme.shortSource(item.source))
@@ -320,7 +327,7 @@ struct TimeCell: View {
             HStack(spacing: 4) {
                 HStack(spacing: 0) {
                     Text(t.stamp)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: 10.5, design: .monospaced))
                     if t.micro != 0 {
                         Text(String(format: ".%03d", t.micro / 1000))
                             .font(.system(size: 8.5, design: .monospaced))
