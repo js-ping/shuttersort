@@ -79,6 +79,40 @@ enum NamePattern: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// 对新文件名按「字符序号」做插入 / 删除。
+///
+/// 位置 1 起算，负数从末尾数：
+///  · 插入：在第 N 个字符**之后**；`0` = 最前面；`-1` = 末尾
+///  · 删除：从第 N 个字符**开始**删 N 个；`-1` = 最后一个字符
+///
+/// 只作用于扩展名之前的主干 —— 位置算错了也不会把 `.jpg` 撕掉。
+struct NameEdit: Identifiable, Equatable {
+    enum Kind: String, CaseIterable, Identifiable {
+        case insert = "插入"
+        case delete = "删除"
+        var id: String { rawValue }
+    }
+
+    var id = UUID()
+    var enabled = true
+    var kind: Kind = .insert
+    var position: Int = 1
+    /// 插入的内容（`kind == .delete` 时忽略）
+    var text = ""
+    /// 删除几个字符（`kind == .insert` 时忽略）
+    var count: Int = 1
+
+    /// 给 tooltip / 摘要用的一句话
+    var summary: String {
+        switch kind {
+        case .insert:
+            return "第 \(position) 位后插入「\(text)」"
+        case .delete:
+            return "从第 \(position) 位删 \(count) 个字符"
+        }
+    }
+}
+
 struct RenameOptions {
     var format = "%Y%m%d_%H%M%S"
     var prefix = "IMG_"
@@ -89,6 +123,8 @@ struct RenameOptions {
     var onlyRenamable = false
     /// 时间校正：只作用于生成文件名，绝不回写元数据
     var offsetSeconds = 0
+    /// 按位置增删字符，按顺序作用在拼好的主干上。空数组 = 不做任何编辑
+    var edits: [NameEdit] = []
 
     static let formatPresets: [String] = [
         "%Y%m%d_%H%M%S", "%Y-%m-%d_%H-%M-%S", "%Y%m%d", "%Y年%m月%d日", "%Y%m%d_%H%M%S_%j",

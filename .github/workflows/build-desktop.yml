@@ -106,6 +106,15 @@ jobs:
         # 任何一处不一致都会让这个 job 失败，后面打包和发布都不会跑。
         run: python3 tests/run_parity.py
 
+      - name: 位置增删自检（19 项边界）
+        working-directory: native
+        # 「按位置增删」最怕数错一位 —— 界面里看着像对的，改完一百张才发现每张少两个字。
+        # 这里把 0 / 负数 / 超长 / 叠加 / 停用 / 中文 / 扩展名保护全钉成断言。
+        run: |
+          set -eux
+          swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o "$RUNNER_TEMP/ss-cli"
+          "$RUNNER_TEMP/ss-cli" edit-test
+
       - name: 编译原生版 + 打 zip / dmg
         working-directory: native
         run: |

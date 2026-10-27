@@ -120,6 +120,12 @@ struct SidebarView: View {
                     labeledField("后缀", text: $state.suffix, width: 74)
                 }
 
+                Divider().padding(.vertical, 1)
+
+                editSection
+
+                Divider().padding(.vertical, 1)
+
                 Toggle("按日期归档到子文件夹", isOn: $state.archive)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 11.5))
@@ -146,6 +152,110 @@ struct SidebarView: View {
                 .frame(width: width)
                 .onChange(of: text.wrappedValue) { _, _ in state.optionsChanged() }
         }
+    }
+
+    // MARK: - 按位置增删
+
+    /// 拼好的名字 → 按字符序号插 / 删。
+    ///
+    /// 之所以不做成「在哪段文字前后」那种锚点写法：日期段长度随格式变，
+    /// 锚点经常找不到；序号虽然要数，但结果恒等于人眼看到的第 N 个字。
+    private var editSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Text("按位置增删字符").font(.system(size: 11.5))
+                Spacer()
+                Button {
+                    state.addEdit()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.borderless)
+                .help("添加一条位置规则")
+            }
+
+            if state.edits.isEmpty {
+                Hint(text: "想在第几位插一段、或从第几位删几个字时用。负数从末尾数（−1 = 最后一位）。")
+            } else {
+                ForEach($state.edits) { $edit in
+                    editRow($edit)
+                }
+                HStack(spacing: 3) {
+                    Text("预览")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                    Text(state.editSample)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private func editRow(_ edit: Binding<NameEdit>) -> some View {
+        let e = edit.wrappedValue
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Toggle("", isOn: edit.enabled)
+                    .toggleStyle(.checkbox)
+                    .labelsHidden()
+                    .help("取消勾选可临时停用这条，不用删掉")
+
+                Picker("", selection: edit.kind) {
+                    ForEach(NameEdit.Kind.allCases) { k in
+                        Text(k.rawValue).tag(k)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 56)
+                .controlSize(.small)
+
+                Text("第").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                SignedIntField(value: edit.position) {}
+                    .frame(width: 40)
+                Text("位").font(.system(size: 10.5)).foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    state.removeEdit(e.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.borderless)
+                .help("删除这条规则")
+            }
+
+            if e.kind == .insert {
+                TextField("要插入的文字", text: edit.text)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .controlSize(.small)
+            } else {
+                HStack(spacing: 5) {
+                    Text("删").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    SignedIntField(value: edit.count) {}
+                        .frame(width: 40)
+                    Text("个字符").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(7)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+        )
+        .opacity(e.enabled ? 1 : 0.5)
+        // 整行只在这里报一次变，内部的数字框和外框都不用各自再报
+        .onChange(of: edit.wrappedValue) { _, _ in state.optionsChanged() }
     }
 
     // MARK: - 3 时间戳来源

@@ -75,8 +75,14 @@ else
 fi
 
 # ---- Info.plist（版本号现填）
-sed -e "s|<string>1\.5\.0</string>|<string>$VERSION</string>|g" \
-    Resources/Info.plist > "$BUNDLE/Contents/Info.plist"
+#
+# 不用 sed 替换占位符：那样每次升版本都得记得同步改 plist 里的旧字符串，
+# 改漏了就悄悄打出老版本号。plutil 直接按键写入，不关心原来写的是什么。
+cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
+/usr/bin/plutil -replace CFBundleShortVersionString -string "$VERSION" \
+    "$BUNDLE/Contents/Info.plist"
+/usr/bin/plutil -replace CFBundleVersion -string "$VERSION" \
+    "$BUNDLE/Contents/Info.plist"
 /usr/bin/plutil -lint "$BUNDLE/Contents/Info.plist" >/dev/null
 
 # ---- 图标

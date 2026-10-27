@@ -105,21 +105,73 @@ enum Planner {
         let base = ns.deletingPathExtension
         let extPart = ext.isEmpty ? "" : "." + ext
 
+        // 先把主干拼出来，扩展名单独留着 —— 后面的位置编辑只动主干
+        var stem: String
         if o.pattern == .originalOnly {
-            return o.prefix + base + o.suffix + extPart
-        }
-        guard let t else { return nil }
-        let stamp = PyFormat.strftime(o.format, t)
-        guard !stamp.isEmpty else { return nil }
+            stem = o.prefix + base + o.suffix
+        } else {
+            guard let t else { return nil }
+            let stamp = PyFormat.strftime(o.format, t)
+            guard !stamp.isEmpty else { return nil }
 
-        switch o.pattern {
-        case .dateOriginal:
-            return o.prefix + stamp + "_" + base + o.suffix + extPart
-        case .originalDate:
-            return o.prefix + base + "_" + stamp + o.suffix + extPart
-        default:
-            return o.prefix + stamp + o.suffix + extPart
+            switch o.pattern {
+            case .dateOriginal:
+                stem = o.prefix + stamp + "_" + base + o.suffix
+            case .originalDate:
+                stem = o.prefix + base + "_" + stamp + o.suffix
+            default:
+                stem = o.prefix + stamp + o.suffix
+            }
         }
+
+        // 按位置增删：在「前缀 + 日期 + 后缀」全部拼完之后再动，
+        // 这样连前缀也能被删掉（例如去掉 `IMG_`）
+        if !o.edits.isEmpty {
+            let edited = applyEdits(stem, o.edits)
+            // 删到空会产出 `.jpg` 这种没名字的文件，退回未编辑的结果更安全
+            if !edited.isEmpty { stem = edited }
+        }
+        return stem + extPart
+    }
+
+    // MARK: - 按位置增删
+
+    /// 把一串编辑规则依次作用到文件名主干上。
+    ///
+    /// 规则按数组顺序执行，前一条的结果是后一条的输入 —— 所以「先删前缀再插日期」
+    /// 这种组合写法是确定的，不会因为顺序不同算出两个结果。
+    static func applyEdits(_ stem: String, _ edits: [NameEdit]) -> String {
+        var chars = Array(stem)
+        for e in edits where e.enabled {
+            switch e.kind {
+            case .insert:
+                guard !e.text.isEmpty else { continue }
+                let at = insertionPoint(e.position, count: chars.count)
+                chars.insert(contentsOf: Array(e.text), at: at)
+
+            case .delete:
+                guard e.count > 0 else { continue }
+                let start = deletionStart(e.position, count: chars.count)
+                let end = min(chars.count, start + e.count)
+                guard start < end else { continue }
+                chars.removeSubrange(start..<end)
+            }
+        }
+        return String(chars)
+    }
+
+    /// 插入点（0-based）：正数 = 第 N 个字符之后；0 = 最前；负数从末尾往前数（-1 = 末尾）
+    private static func insertionPoint(_ p: Int, count n: Int) -> Int {
+        if p > 0 { return min(p, n) }
+        if p < 0 { return max(0, n + p + 1) }
+        return 0
+    }
+
+    /// 删除起点（0-based）：正数 = 第 N 个字符；负数从末尾数（-1 = 最后一个）
+    private static func deletionStart(_ p: Int, count n: Int) -> Int {
+        if p > 0 { return min(p - 1, n) }
+        if p < 0 { return max(0, n + p) }
+        return 0
     }
 
     /// 冲突时自动加 `_1` `_2` …，保证目标名唯一。

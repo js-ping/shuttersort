@@ -32,6 +32,8 @@ final class AppState: ObservableObject {
     @Published var pattern: NamePattern = .dateOnly
     @Published var archive = false
     @Published var archiveFormat = "%Y/%Y-%m"
+    /// 按位置增删字符的规则列表，空 = 不启用
+    @Published var edits: [NameEdit] = []
 
     // MARK: - 读取
 
@@ -232,6 +234,7 @@ final class AppState: ObservableObject {
         o.archive = archive
         o.archiveFormat = archiveFormat
         o.offsetSeconds = offsetSeconds
+        o.edits = edits
         return o
     }
 
@@ -423,6 +426,31 @@ final class AppState: ObservableObject {
 
     /// 选项改变时统一走这里（含防抖）
     func optionsChanged() { rebuildPlan() }
+
+    // MARK: - 按位置增删
+
+    func addEdit() {
+        // 新规则默认插在中段，正好落在「前缀_日期」中间，一眼能看出效果
+        var e = NameEdit()
+        e.position = 4
+        e.text = "-"
+        edits.append(e)
+        optionsChanged()
+    }
+
+    func removeEdit(_ id: UUID) {
+        edits.removeAll { $0.id == id }
+        optionsChanged()
+    }
+
+    /// 侧栏那行实时示例：拿当前规则打一遍样例名，让人不用真改名就能看出效果
+    var editSample: String {
+        guard !edits.isEmpty else { return "" }
+        let stamp = PyFormat.strftime(renameOptions.format, PyFormat.now)
+        let base = prefix + stamp + suffix
+        let result = Planner.applyEdits(base, edits)
+        return result.isEmpty ? base : result
+    }
 
     // MARK: - 选择
 

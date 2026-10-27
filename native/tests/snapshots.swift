@@ -124,8 +124,22 @@ final class Snapper {
 
         let W = DetailPane.ColWidth.self
 
-        // 侧栏四张卡 + 底栏
+        // 侧栏四张卡 + 底栏（默认状态：没有位置规则，应显示提示文字）
+        state.edits = []
+        state.rebuildPlan(immediate: true)
         shoot("sidebar", SidebarView(), width: Theme.sidebarWidth, height: 780)
+
+        // 侧栏 + 两条位置规则，专门看那块 UI 排得下排不下
+        state.edits = [
+            { var e = NameEdit(); e.kind = .insert; e.position = 4; e.text = "-"; return e }(),
+            { var e = NameEdit(); e.kind = .delete; e.position = 1; e.count = 4; return e }(),
+        ]
+        state.rebuildPlan(immediate: true)
+        shoot("sidebar-edits", SidebarView(), width: Theme.sidebarWidth, height: 780)
+
+        // 恢复干净状态，后面的图不受影响
+        state.edits = []
+        state.rebuildPlan(immediate: true)
 
         // 表格里的单元格：列宽够不够，只有按真实列宽渲染才看得出来
         if let withBadge = state.plan.first(where: { $0.status == .ok && $0.displayTime != nil }) {
@@ -152,6 +166,9 @@ final class Snapper {
         shoot("sheet-confirm", ConfirmSheet(), width: 540, height: 460)
         shoot("sheet-calibrate", CalibrateSheet(), width: 480, height: 380)
         shoot("sheet-help", HelpSheet(), width: 660, height: 620)
+        // 帮助页是 ScrollView，620 只拍得到开头。整页拉长再拍一张，
+        // 用来核对新增小节（以及以后任何加进来的内容）排版有没有问题。
+        shoot("sheet-help-full", HelpSheet(height: 1500), width: 660, height: 1500)
 
         state.loadHistory()
         state.showHistory = false

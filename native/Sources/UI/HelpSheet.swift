@@ -6,6 +6,8 @@ import SwiftUI
 /// 所以这里的措辞直接照搬那两份，别自己另写一套说法。
 struct HelpSheet: View {
     @Environment(\.dismiss) private var dismiss
+    /// 默认弹窗高度。快照工具会传更大的值，把整页一次性拍下来核对排版
+    var height: CGFloat = 620
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +29,7 @@ struct HelpSheet: View {
                     scopeSection
                     sourceSection
                     namingSection
+                    editSection
                     burstSection
                     correctionSection
                     safetySection
@@ -48,7 +51,7 @@ struct HelpSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 11)
         }
-        .frame(width: 660, height: 620)
+        .frame(width: 660, height: height)
     }
 
     // MARK: - 各节
@@ -119,6 +122,25 @@ struct HelpSheet: View {
             box("冲突处理：目标名已存在时自动加 _1、_2 后缀；冲突检测会排除「文件自身」"
                 + "和「本轮即将腾出的旧名」，所以重复执行结果稳定 —— "
                 + "已经改好的文件再次扫描时会显示「无需改动」，不会被再改一次。")
+        }
+    }
+
+    private var editSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            h("按位置增删字符怎么用")
+            p("有些相机或导出工具会在文件名里塞固定的一段 —— IMG_、_edited、多余的秒、"
+              + "导入软件自动加的一串编号。这类改动光靠「前缀 / 后缀」做不到，"
+              + "因为它们只能加在两头。这块补的就是这个缺口：在名字**拼好之后**，按第几个字符插或删。")
+            kv("插入", "「第 4 位后插入 -」= 数到第 4 个字符，在它后面塞一个 -。位置填 0 就是最前面")
+            kv("删除", "「从第 1 位删 4 个」= 删掉前 4 个字符，正好把 IMG_ 去掉")
+            kv("负数位置", "从末尾往前数：-1 是最后一个字符，-4 是倒数第 4 个。"
+               + "日期秒数有长有短、格式不固定的时候，用负数比数正数稳")
+            kv("多条规则", "从上往下依次执行，前一条的结果就是后一条的输入。"
+               + "每条前面的勾选框可以临时停用，不用删掉再重建")
+            kv("看效果", "规则下面那行「预览」用当前格式实时算一遍样例名，不用真改名就能确认对不对")
+            box("扩展名不受影响 —— 规则只在 .jpg / .mp4 之前的主干上生效，"
+                + "就算位置填过头也不会把扩展名撕掉；万一删到一点都不剩，会退回未编辑的名字，"
+                + "不会产出没有名字的文件。", warn: true)
         }
     }
 
