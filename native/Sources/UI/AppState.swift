@@ -32,8 +32,8 @@ final class AppState: ObservableObject {
     @Published var pattern: NamePattern = .dateOnly
     @Published var archive = false
     @Published var archiveFormat = "%Y/%Y-%m"
-    /// 按位置增删字符的规则列表，空 = 不启用
-    @Published var edits: [NameEdit] = []
+    /// 改名规则链，空 = 不启用
+    @Published var rules: [NameRule] = []
 
     // MARK: - 读取
 
@@ -234,7 +234,7 @@ final class AppState: ObservableObject {
         o.archive = archive
         o.archiveFormat = archiveFormat
         o.offsetSeconds = offsetSeconds
-        o.edits = edits
+        o.rules = rules
         return o
     }
 
@@ -427,29 +427,69 @@ final class AppState: ObservableObject {
     /// 选项改变时统一走这里（含防抖）
     func optionsChanged() { rebuildPlan() }
 
-    // MARK: - 按位置增删
+    // MARK: - 改名规则
 
-    func addEdit() {
-        // 新规则默认插在中段，正好落在「前缀_日期」中间，一眼能看出效果
-        var e = NameEdit()
-        e.position = 4
-        e.text = "-"
-        edits.append(e)
+    func addRule(_ kind: NameRule.Kind) {
+        var r = NameRule()
+        r.kind = kind
+        // 每种类型的默认值都挑「最常见的那次用法」，加进来就能直接用
+        switch kind {
+        case .insert:
+            r.position = 4
+            r.text = "-"
+        case .delete:
+            r.position = 1
+            r.count = 4
+        case .replace:
+            r.text = "IMG_"
+            r.replacement = ""
+        case .strip:
+            r.charset = .space
+        case .changeCase:
+            r.caseStyle = .lower
+        }
+        rules.append(r)
         optionsChanged()
     }
 
-    func removeEdit(_ id: UUID) {
-        edits.removeAll { $0.id == id }
+    func removeRule(_ id: UUID) {
+        rules.removeAll { $0.id == id }
         optionsChanged()
     }
 
-    /// 侧栏那行实时示例：拿当前规则打一遍样例名，让人不用真改名就能看出效果
-    var editSample: String {
-        guard !edits.isEmpty else { return "" }
+    /// 上下挪一条 —— 规则顺序决定结果，所以必须能调
+    func moveRule(_ id: UUID, up: Bool) {
+        guard let i = rules.firstIndex(where: { $0.id == id }) else { return }
+        let j = up ? i - 1 : i + 1
+        guard rules.indices.contains(j) else { return }
+        rules.swapAt(i, j)
+        optionsChanged()
+    }
+
+    /// 侧栏那行实时示例：拿当前规则链打一遍样例名，让人不用真改名就能看出效果
+    var ruleSampleBefore: String {
+        guard !rules.isEmpty else { return "" }
         let stamp = PyFormat.strftime(renameOptions.format, PyFormat.now)
-        let base = prefix + stamp + suffix
-        let result = Planner.applyEdits(base, edits)
-        return result.isEmpty ? base : result
+        return prefix + stamp + suffix
+    }
+
+    var ruleSampleAfter: String {
+        guard !rules.isEmpty else { return "" }
+        let result = Planner.applyRules(ruleSampleBefore, rules)
+        // 删光了就显示这个事实，别让人以为规则全是空的
+        return result.isEmpty ? "（空）" : result
+    }
+
+    /// 第 `index` 条规则执行**前**的样例名。
+    ///
+    /// 位置类规则要靠它画字符标尺 —— 前面一条把 `IMG_` 换成 `照片_`，
+    /// 长度从 4 变 3，后面的「第 4 位」就已经不是原来那个字符了。
+    /// 标尺必须显示这条规则真正看到的那个名字，否则点选出来的位置一定是错的。
+    func ruleInputSample(before index: Int) -> String {
+        let base = ruleSampleBefore
+        guard index > 0 else { return base }
+        let prior = Array(rules.prefix(index)).filter(\.enabled)
+        return Planner.applyRules(base, prior)
     }
 
     // MARK: - 选择

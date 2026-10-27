@@ -8,7 +8,9 @@ import Foundation
 /// 用法：
 ///   shuttersort-cli dump --dir /path [--recursive] [--format F] [--prefix P]
 ///                        [--pattern 仅日期] [--offset 28800] [--no-exiftool]
-///                        [--edit insert:8:-] [--edit delete:1:4]
+///                        [--edit insert:8:-] [--edit replace:IMG_:]
+///
+///   --edit 的完整语法见 `CLIArgs.parseRule` 上面的注释。
 
 struct CLIArgs {
     var command = "dump"
@@ -26,27 +28,74 @@ struct CLIArgs {
     var useExifTool = true
     var parseFilename = true
     var fallback: FallbackMode = .skip
-    var edits: [NameEdit] = []
+    var rules: [NameRule] = []
 
-    /// `insert:<位置>:<文字>` 或 `delete:<位置>:<个数>`
+    /// 规则语法（字段之间用冒号分隔，第三段吃掉剩下的全部）：
     ///
-    /// 文字里允许出现冒号，所以最多切三刀，第三段把剩下的全吃掉。
-    static func parseEdit(_ s: String) -> NameEdit? {
+    ///     insert:<位置>:<文字>              在第 N 位后插入
+    ///     insert@before:<锚点>:<文字>        在某段文字前插入
+    ///     insert@after:<锚点>:<文字>         在某段文字后插入
+    ///     delete:<位置>:<个数|end>           从第 N 位删若干个；end = 删到末尾
+    ///     replace:<找>:<换成>                替换（「换成」留空 = 移除）
+    ///     strip:<space|underscore|dash|brackets|symbols|digits>
+    ///     case:<lower|upper|capitalize|sentence>
+    static func parseRule(_ s: String) -> NameRule? {
         let parts = s.split(separator: ":", maxSplits: 2,
                             omittingEmptySubsequences: false).map(String.init)
-        guard parts.count == 3, let pos = Int(parts[1]) else { return nil }
-        var e = NameEdit()
-        e.position = pos
-        switch parts[0] {
+        guard let head = parts.first else { return nil }
+        let body = Array(parts.dropFirst())
+
+        var r = NameRule()
+
+        switch head {
         case "insert":
-            e.kind = .insert
-            e.text = parts[2]
-            return e
+            guard body.count == 2, let pos = Int(body[0]) else { return nil }
+            r.kind = .insert
+            r.anchor = .position
+            r.position = pos
+            r.text = body[1]
+            return r
+
+        case "insert@before", "insert@after":
+            guard body.count == 2, !body[0].isEmpty else { return nil }
+            r.kind = .insert
+            r.anchor = head == "insert@before" ? .beforeText : .afterText
+            r.anchorText = body[0]
+            r.text = body[1]
+            return r
+
         case "delete":
-            guard let n = Int(parts[2]) else { return nil }
-            e.kind = .delete
-            e.count = n
-            return e
+            guard body.count == 2, let pos = Int(body[0]) else { return nil }
+            r.kind = .delete
+            r.position = pos
+            if body[1] == "end" {
+                r.toEnd = true
+            } else if let n = Int(body[1]) {
+                r.count = n
+            } else {
+                return nil
+            }
+            return r
+
+        case "replace":
+            guard body.count == 2 else { return nil }
+            r.kind = .replace
+            r.text = body[0]
+            r.replacement = body[1]
+            return r
+
+        case "strip":
+            guard let c = NameRule.Charset.fromKey(body.first ?? "") else { return nil }
+            r.kind = .strip
+            r.charset = c
+            return r
+
+        case "case":
+            guard let s2 = NameRule.CaseStyle.fromKey(body.first ?? "") else { return nil }
+            r.kind = .changeCase
+            r.caseStyle = s2
+            return r
+
         default:
             return nil
         }
@@ -83,7 +132,7 @@ struct CLIArgs {
             case "--fallback":
                 if let v = next(), let f = FallbackMode(rawValue: v) { a.fallback = f }
             case "--edit":
-                if let v = next(), let e = parseEdit(v) { a.edits.append(e) }
+                if let v = next(), let r = parseRule(v) { a.rules.append(r) }
             default: break
             }
             i += 1
@@ -204,9 +253,10 @@ func renameSelfTest(rows: [MediaRow], plan: [PlanItem]) -> Int32 {
     return fails == 0 ? 0 : 1
 }
 
-// ---------------- 按位置增删自检 ----------------
+// ---------------- 改名规则自检 ----------------
 
-/// 位置算法的边界全钉在这里：0 / 负数 / 超长 / 叠加 / 停用 / 中文。
+/// 五类规则的边界全钉在这里：0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 /
+/// 中文按字符计数 / 扩展名保护 / 删空回退。
 ///
 /// 这类「数错一位」的 bug 肉眼极难发现 —— 界面里看着像对的，
 /// 改完一百张照片才发现每张少了两个字。所以放进 CI 当闸门。
@@ -223,64 +273,123 @@ func editSelfTest() -> Int32 {
     // 19 个字符：I M G _ 2 0 2 6 0 1 0 1 _ 1 2 0 0 0 0
     let base = "IMG_20260101_120000"
 
-    func ins(_ p: Int, _ t: String) -> NameEdit {
-        var e = NameEdit(); e.kind = .insert; e.position = p; e.text = t; return e
+    func ins(_ p: Int, _ t: String) -> NameRule {
+        var r = NameRule(); r.kind = .insert; r.anchor = .position
+        r.position = p; r.text = t; return r
     }
-    func del(_ p: Int, _ n: Int) -> NameEdit {
-        var e = NameEdit(); e.kind = .delete; e.position = p; e.count = n; return e
+    func insBefore(_ anchor: String, _ t: String) -> NameRule {
+        var r = NameRule(); r.kind = .insert; r.anchor = .beforeText
+        r.anchorText = anchor; r.text = t; return r
+    }
+    func insAfter(_ anchor: String, _ t: String) -> NameRule {
+        var r = NameRule(); r.kind = .insert; r.anchor = .afterText
+        r.anchorText = anchor; r.text = t; return r
+    }
+    func del(_ p: Int, _ n: Int) -> NameRule {
+        var r = NameRule(); r.kind = .delete; r.position = p; r.count = n; return r
+    }
+    func delToEnd(_ p: Int) -> NameRule {
+        var r = NameRule(); r.kind = .delete; r.position = p; r.toEnd = true; return r
+    }
+    func rep(_ find: String, _ to: String, cs: Bool = true) -> NameRule {
+        var r = NameRule(); r.kind = .replace
+        r.text = find; r.replacement = to; r.caseSensitive = cs; return r
+    }
+    func strip(_ c: NameRule.Charset) -> NameRule {
+        var r = NameRule(); r.kind = .strip; r.charset = c; return r
+    }
+    func changeCase(_ s: NameRule.CaseStyle) -> NameRule {
+        var r = NameRule(); r.kind = .changeCase; r.caseStyle = s; return r
     }
 
-    // 插入：位置 = 「第几个字符之后」
-    check(Planner.applyEdits(base, [ins(4, "-")]), "IMG_-20260101_120000", "第 4 位后插入 -")
-    check(Planner.applyEdits(base, [ins(0, "X")]), "XIMG_20260101_120000", "位置 0 = 最前面")
-    check(Planner.applyEdits(base, [ins(-1, "X")]), "IMG_20260101_120000X", "位置 -1 = 末尾")
-    check(Planner.applyEdits(base, [ins(-2, "X")]), "IMG_20260101_12000X0", "位置 -2 = 倒数第二个之后")
-    check(Planner.applyEdits(base, [ins(999, "X")]), "IMG_20260101_120000X", "位置超长夹到末尾")
+    // ---- 插入：按位置
+    check(Planner.applyRules(base, [ins(4, "-")]), "IMG_-20260101_120000", "插入：第 4 位后")
+    check(Planner.applyRules(base, [ins(0, "X")]), "XIMG_20260101_120000", "插入：位置 0 = 最前面")
+    check(Planner.applyRules(base, [ins(-1, "X")]), "IMG_20260101_120000X", "插入：位置 -1 = 末尾")
+    check(Planner.applyRules(base, [ins(999, "X")]), "IMG_20260101_120000X", "插入：位置超长夹到末尾")
 
-    // 删除：位置 = 「从第几个字符开始删」
-    check(Planner.applyEdits(base, [del(1, 4)]), "20260101_120000", "从第 1 位删 4 个 = 去 IMG_")
-    check(Planner.applyEdits(base, [del(5, 9)]), "IMG_120000", "从第 5 位删 9 个 = 去日期段")
-    check(Planner.applyEdits(base, [del(-4, 4)]), "IMG_20260101_12", "从 -4 删 4 个 = 去秒")
-    check(Planner.applyEdits(base, [del(18, 99)]), "IMG_20260101_1200", "删超长只删到末尾")
-    check(Planner.applyEdits(base, [del(999, 3)]), base, "删除位置超长 = 不删")
+    // ---- 插入：按锚点（不用数位，日期格式变了也不会错）
+    check(Planner.applyRules(base, [insAfter("IMG_", "旅行_")]),
+          "IMG_旅行_20260101_120000", "插入：锚点「IMG_」后")
+    check(Planner.applyRules(base, [insBefore("20260101", "拍于")]),
+          "IMG_拍于20260101_120000", "插入：锚点「20260101」前")
+    check(Planner.applyRules(base, [insBefore("找不到的", "X")]),
+          base, "插入：锚点不存在 → 整条不生效")
 
-    // 多条规则按数组顺序叠加：前一条的结果是后一条的输入
-    check(Planner.applyEdits(base, [del(1, 4), ins(0, "P_")]),
-          "P_20260101_120000", "先删前缀再插 P_（顺序生效）")
-    check(Planner.applyEdits(base, [ins(0, "P_"), del(1, 4)]),
-          "G_20260101_120000", "反过来先插再删：新插的 P_ 被后面的删除吃掉")
+    // ---- 删除
+    check(Planner.applyRules(base, [del(1, 4)]), "20260101_120000", "删除：第 1 位删 4 个 = 去 IMG_")
+    check(Planner.applyRules(base, [del(5, 9)]), "IMG_120000", "删除：第 5 位删 9 个 = 去日期段")
+    check(Planner.applyRules(base, [del(-4, 4)]), "IMG_20260101_12", "删除：-4 位删 4 个 = 去秒")
+    check(Planner.applyRules(base, [del(18, 99)]), "IMG_20260101_1200", "删除：数量超长只删到末尾")
+    check(Planner.applyRules(base, [del(999, 3)]), base, "删除：位置超长 = 不删")
+    check(Planner.applyRules(base, [delToEnd(13)]), "IMG_20260101", "删除：第 13 位删到末尾")
+    check(Planner.applyRules(base, [delToEnd(1)]), "", "删除：第 1 位删到末尾 = 全空")
 
-    // 停用的规则等于不存在
+    // ---- 替换 / 移除
+    check(Planner.applyRules(base, [rep("IMG_", "")]), "20260101_120000", "替换：换成留空 = 移除")
+    check(Planner.applyRules(base, [rep("IMG_", "照片_")]), "照片_20260101_120000", "替换：换成照片_")
+    check(Planner.applyRules(base, [rep("img_", "", cs: false)]),
+          "20260101_120000", "替换：不区分大小写能命中")
+    check(Planner.applyRules(base, [rep("img_", "", cs: true)]),
+          base, "替换：区分大小写时找不到就不动")
+    check(Planner.applyRules(base, [rep("不存在", "")]), base, "替换：找不到就不动")
+
+    // ---- 剥离字符
+    check(Planner.applyRules(base, [strip(.underscore)]),
+          "IMG20260101120000", "剥离：下划线")
+    check(Planner.applyRules("a-b—c", [strip(.dash)]), "abc", "剥离：连字符（含全角长破折号）")
+    check(Planner.applyRules("a b\u{3000}c", [strip(.space)]),
+          "abc", "剥离：空格（含全角）")
+    check(Planner.applyRules("IMG_123", [strip(.digits)]), "IMG_", "剥离：数字")
+    check(Planner.applyRules("题(注)【补】", [strip(.brackets)]), "题注补", "剥离：中英文括号")
+
+    // ---- 大小写
+    check(Planner.applyRules("IMG_ABC", [changeCase(.lower)]), "img_abc", "大小写：全小写")
+    check(Planner.applyRules("img_abc", [changeCase(.upper)]), "IMG_ABC", "大小写：全大写")
+    check(Planner.applyRules("img_abc", [changeCase(.capitalize)]),
+          "Img_Abc", "大小写：每词首字母大写")
+    check(Planner.applyRules("IMG_ABC", [changeCase(.sentence)]),
+          "Img_abc", "大小写：首字母大写、其余小写")
+
+    // ---- 多条叠加：前一条的结果是后一条的输入
+    check(Planner.applyRules(base, [del(1, 4), ins(0, "P_")]),
+          "P_20260101_120000", "叠加：先删 IMG_ 再插 P_")
+    check(Planner.applyRules(base, [rep("IMG_", ""), strip(.underscore)]),
+          "20260101120000", "叠加：先移除 IMG_ 再剥离下划线")
+    check(Planner.applyRules(base, [ins(0, "P_"), del(1, 4)]),
+          "G_20260101_120000", "叠加：顺序反过来，新插的 P_ 被后面的删除吃掉")
+
+    // ---- 停用
     var off = ins(4, "-")
     off.enabled = false
-    check(Planner.applyEdits(base, [off]), base, "停用的规则被跳过")
+    check(Planner.applyRules(base, [off]), base, "停用的规则被跳过")
 
-    // 空内容 / 零个数不该改动任何东西
-    check(Planner.applyEdits(base, [ins(4, "")]), base, "插入空文字 = 不动")
-    check(Planner.applyEdits(base, [del(4, 0)]), base, "删 0 个 = 不动")
+    // ---- 空输入不该改动
+    check(Planner.applyRules(base, [ins(4, "")]), base, "插入空文字 = 不动")
+    check(Planner.applyRules(base, [rep("", "X")]), base, "查找空文字 = 不动")
 
-    // 按字符算，不是按字节：中文一个字就是一个位置
-    check(Planner.applyEdits("照片ABC", [ins(2, "—")]), "照片—ABC", "中文按字符计数")
-    check(Planner.applyEdits("照片ABC", [del(1, 2)]), "ABC", "删掉两个汉字")
+    // ---- 中文按字符算，不是按字节
+    check(Planner.applyRules("照片ABC", [ins(2, "—")]), "照片—ABC", "中文：按字符计数")
+    check(Planner.applyRules("照片ABC", [del(1, 2)]), "ABC", "中文：删掉两个汉字")
 
-    // 走完整条命名链：扩展名必须留在最后，不能被当成字符删掉
+    // ---- 走完整条命名链：扩展名必须留在最后
     var o = RenameOptions()
     o.format = "%Y%m%d_%H%M%S"
     o.prefix = "IMG_"
-    o.edits = [del(1, 7)]   // 去掉 "IMG_202"
+    o.rules = [del(1, 7)]   // 去掉 "IMG_202"
     let t = WallTime(year: 2026, month: 1, day: 1, hour: 12)
     check(Planner.formatName(t, "DSC0001.JPG", o) ?? "",
-          "60101_120000.JPG", "扩展名不被位置规则影响")
+          "60101_120000.JPG", "扩展名不被规则链影响")
 
-    // 删到空时退回未编辑结果，不产出 ".jpg" 这种没名字的文件
+    // ---- 删到空时退回未编辑结果，不产出 ".jpg" 这种没名字的文件
     var o2 = RenameOptions()
     o2.format = "%Y"
     o2.prefix = ""
     o2.suffix = ""
-    o2.edits = [del(1, 99)]
+    o2.rules = [delToEnd(1)]
     check(Planner.formatName(t, "a.JPG", o2) ?? "", "2026.JPG", "删空时退回原名主干")
 
-    print(fails == 0 ? "  按位置增删自检全部通过" : "  \(fails) 项失败")
+    print(fails == 0 ? "  改名规则自检全部通过" : "  \(fails) 项失败")
     return fails == 0 ? 0 : 1
 }
 
@@ -353,7 +462,7 @@ func scanAndPlan(dir: String?, files: [String], args: CLIArgs) -> ([MediaRow], [
     ro.archive = args.archive
     ro.archiveFormat = args.archiveFormat
     ro.offsetSeconds = args.offset
-    ro.edits = args.edits
+    ro.rules = args.rules
 
     return (rows, Planner.build(rows: rows, options: ro))
 }
@@ -376,7 +485,8 @@ case "rename-test":
     exit(renameSelfTest(rows: rows, plan: plan))
 
 case "edit-test":
-    // 按位置增删的边界：0 / 负数 / 超长 / 叠加 / 停用 / 中文 / 扩展名保护
+    // 改名规则的边界：插入（位置/锚点）、删除（含到末尾）、替换、剥离、大小写，
+    // 外加 0 / 负数 / 超长 / 叠加 / 停用 / 中文 / 扩展名保护 / 删空回退
     exit(editSelfTest())
 
 default:

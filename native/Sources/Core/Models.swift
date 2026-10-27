@@ -79,36 +79,149 @@ enum NamePattern: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// 对新文件名按「字符序号」做插入 / 删除。
+/// 一条改名规则。按数组顺序作用在「拼好的名字主干」上，前一条的结果是后一条的输入。
 ///
-/// 位置 1 起算，负数从末尾数：
-///  · 插入：在第 N 个字符**之后**；`0` = 最前面；`-1` = 末尾
-///  · 删除：从第 N 个字符**开始**删 N 个；`-1` = 最后一个字符
+/// 五种类型共用一个结构，字段按 `kind` 解释，没用到的不参与。
+/// 为什么不用 enum + associated values：那样每个 case 都要单独一套 Binding 才能在
+/// SwiftUI 里编辑，代码量翻倍还没换来任何好处。这里用「宽结构 + 按 kind 取字段」。
 ///
-/// 只作用于扩展名之前的主干 —— 位置算错了也不会把 `.jpg` 撕掉。
-struct NameEdit: Identifiable, Equatable {
+/// 刻意没做序号 / 正则 / 脚本那几样：
+///  · 序号会破坏幂等 —— 只选部分文件时编号就漂了，而「重复扫描结果不变」是本工具的核心承诺
+///  · 正则和脚本门槛太高，跟「傻瓜式」定位冲突
+struct NameRule: Identifiable, Equatable {
     enum Kind: String, CaseIterable, Identifiable {
         case insert = "插入"
         case delete = "删除"
+        case replace = "替换"
+        case strip = "剥离字符"
+        case changeCase = "大小写"
         var id: String { rawValue }
+
+        var hint: String {
+            switch self {
+            case .insert: return "在第 N 位或某段文字前后插一段"
+            case .delete: return "从第 N 位删若干字符，或删到末尾"
+            case .replace: return "查找替换；「换成」留空就是移除"
+            case .strip: return "一次去掉所有某类字符"
+            case .changeCase: return "统一大小写风格"
+            }
+        }
+    }
+
+    /// 插入位置怎么确定。按位置要数数，按文字不用数 —— 日期格式变了也不会错位
+    enum Anchor: String, CaseIterable, Identifiable {
+        case position = "按位置"
+        case beforeText = "在某段文字前"
+        case afterText = "在某段文字后"
+        var id: String { rawValue }
+    }
+
+    enum Charset: String, CaseIterable, Identifiable {
+        case space = "空格"
+        case underscore = "下划线 _"
+        case dash = "连字符 -"
+        case brackets = "括号"
+        case symbols = "所有符号"
+        case digits = "数字"
+        var id: String { rawValue }
+
+        /// 命令行用的英文键 —— 终端里敲中文太费劲
+        var key: String {
+            switch self {
+            case .space: return "space"
+            case .underscore: return "underscore"
+            case .dash: return "dash"
+            case .brackets: return "brackets"
+            case .symbols: return "symbols"
+            case .digits: return "digits"
+            }
+        }
+
+        static func fromKey(_ k: String) -> Charset? {
+            allCases.first { $0.key == k }
+        }
+
+        var characters: Set<Character> {
+            switch self {
+            case .space:
+                return [" ", "\t", "\u{3000}"]
+            case .underscore:
+                return ["_"]
+            case .dash:
+                return ["-", "－", "—", "–"]
+            case .brackets:
+                return ["(", ")", "（", "）", "[", "]", "【", "】", "{", "}", "「", "」"]
+            case .symbols:
+                return Set("~!@#$%^&*()_+-=[]{}|;:'\",.<>/?`\\".map { $0 })
+            case .digits:
+                return Set("0123456789".map { $0 })
+            }
+        }
+    }
+
+    enum CaseStyle: String, CaseIterable, Identifiable {
+        case lower = "全小写"
+        case upper = "全大写"
+        case capitalize = "每词首字母大写"
+        case sentence = "首字母大写"
+        var id: String { rawValue }
+
+        var key: String {
+            switch self {
+            case .lower: return "lower"
+            case .upper: return "upper"
+            case .capitalize: return "capitalize"
+            case .sentence: return "sentence"
+            }
+        }
+
+        static func fromKey(_ k: String) -> CaseStyle? {
+            allCases.first { $0.key == k }
+        }
     }
 
     var id = UUID()
     var enabled = true
     var kind: Kind = .insert
-    var position: Int = 1
-    /// 插入的内容（`kind == .delete` 时忽略）
-    var text = ""
-    /// 删除几个字符（`kind == .insert` 时忽略）
-    var count: Int = 1
 
-    /// 给 tooltip / 摘要用的一句话
+    // —— 位置类（insert 按位置时 / delete）
+    /// 1 起算；负数从末尾数（-1 = 最后一个字符）
+    var position = 1
+
+    // —— 删除
+    var count = 1
+    /// 勾上就一路删到末尾，`count` 不参与
+    var toEnd = false
+
+    // —— 文字类（insert / replace）
+    var text = ""
+    var replacement = ""
+    var caseSensitive = true
+
+    // —— 插入的锚点
+    var anchor: Anchor = .position
+    var anchorText = ""
+
+    // —— 剥离 / 大小写
+    var charset: Charset = .space
+    var caseStyle: CaseStyle = .lower
+
+    /// 侧栏规则卡片标题用的一句话摘要
     var summary: String {
         switch kind {
         case .insert:
-            return "第 \(position) 位后插入「\(text)」"
+            let where_ = anchor == .position ? "第 \(position) 位后" : "「\(anchorText)」\(anchor == .beforeText ? "前" : "后")"
+            return "在\(where_)插入「\(text)」"
         case .delete:
-            return "从第 \(position) 位删 \(count) 个字符"
+            return toEnd ? "从第 \(position) 位删到末尾" : "从第 \(position) 位删 \(count) 个"
+        case .replace:
+            return replacement.isEmpty
+                ? "移除「\(text)」"
+                : "「\(text)」换成「\(replacement)」"
+        case .strip:
+            return "去掉所有\(charset.rawValue)"
+        case .changeCase:
+            return caseStyle.rawValue
         }
     }
 }
@@ -123,8 +236,8 @@ struct RenameOptions {
     var onlyRenamable = false
     /// 时间校正：只作用于生成文件名，绝不回写元数据
     var offsetSeconds = 0
-    /// 按位置增删字符，按顺序作用在拼好的主干上。空数组 = 不做任何编辑
-    var edits: [NameEdit] = []
+    /// 改名规则链，按顺序作用在拼好的主干上。空数组 = 不做任何编辑
+    var rules: [NameRule] = []
 
     static let formatPresets: [String] = [
         "%Y%m%d_%H%M%S", "%Y-%m-%d_%H-%M-%S", "%Y%m%d", "%Y年%m月%d日", "%Y%m%d_%H%M%S_%j",

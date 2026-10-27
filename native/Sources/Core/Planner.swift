@@ -124,47 +124,87 @@ enum Planner {
             }
         }
 
-        // 按位置增删：在「前缀 + 日期 + 后缀」全部拼完之后再动，
+        // 规则链：在「前缀 + 日期 + 后缀」全部拼完之后再动，
         // 这样连前缀也能被删掉（例如去掉 `IMG_`）
-        if !o.edits.isEmpty {
-            let edited = applyEdits(stem, o.edits)
+        if !o.rules.isEmpty {
+            let edited = applyRules(stem, o.rules)
             // 删到空会产出 `.jpg` 这种没名字的文件，退回未编辑的结果更安全
             if !edited.isEmpty { stem = edited }
         }
         return stem + extPart
     }
 
-    // MARK: - 按位置增删
+    // MARK: - 规则链
 
-    /// 把一串编辑规则依次作用到文件名主干上。
+    /// 把一串规则依次作用到文件名主干上。
     ///
-    /// 规则按数组顺序执行，前一条的结果是后一条的输入 —— 所以「先删前缀再插日期」
-    /// 这种组合写法是确定的，不会因为顺序不同算出两个结果。
-    static func applyEdits(_ stem: String, _ edits: [NameEdit]) -> String {
-        var chars = Array(stem)
-        for e in edits where e.enabled {
-            switch e.kind {
-            case .insert:
-                guard !e.text.isEmpty else { continue }
-                let at = insertionPoint(e.position, count: chars.count)
-                chars.insert(contentsOf: Array(e.text), at: at)
-
-            case .delete:
-                guard e.count > 0 else { continue }
-                let start = deletionStart(e.position, count: chars.count)
-                let end = min(chars.count, start + e.count)
-                guard start < end else { continue }
-                chars.removeSubrange(start..<end)
-            }
+    /// 前一条的结果是后一条的输入，所以顺序是有意义的 ——
+    /// 「先删 IMG_ 再插日期」和「先插日期再删前 4 位」结果完全不同。
+    static func applyRules(_ stem: String, _ rules: [NameRule]) -> String {
+        var s = stem
+        for r in rules where r.enabled {
+            s = applyRule(s, r)
         }
-        return String(chars)
+        return s
     }
 
-    /// 插入点（0-based）：正数 = 第 N 个字符之后；0 = 最前；负数从末尾往前数（-1 = 末尾）
+    static func applyRule(_ stem: String, _ r: NameRule) -> String {
+        switch r.kind {
+        case .insert:
+            return insertRule(stem, r)
+        case .delete:
+            return deleteRule(stem, r)
+        case .replace:
+            return replaceRule(stem, r)
+        case .strip:
+            let drop = r.charset.characters
+            return String(stem.filter { !drop.contains($0) })
+        case .changeCase:
+            return changeCase(stem, r.caseStyle)
+        }
+    }
+
+    // MARK: 插入
+
+    private static func insertRule(_ stem: String, _ r: NameRule) -> String {
+        guard !r.text.isEmpty else { return stem }
+
+        let at: Int
+        switch r.anchor {
+        case .position:
+            at = insertionPoint(r.position, count: stem.count)
+
+        case .beforeText, .afterText:
+            guard !r.anchorText.isEmpty,
+                  let rng = stem.range(of: r.anchorText,
+                                       options: r.caseSensitive ? [] : .caseInsensitive)
+            else { return stem }   // 锚点文字不存在 → 这条规则不生效，不瞎插
+            let edge = r.anchor == .beforeText ? rng.lowerBound : rng.upperBound
+            at = stem.distance(from: stem.startIndex, to: edge)
+        }
+
+        let idx = stem.index(stem.startIndex, offsetBy: at)
+        return String(stem[..<idx]) + r.text + String(stem[idx...])
+    }
+
+    /// 插入点（字符数，0 = 最前）：正数 = 第 N 个字符之后；负数从末尾往前数（-1 = 末尾）
     private static func insertionPoint(_ p: Int, count n: Int) -> Int {
         if p > 0 { return min(p, n) }
         if p < 0 { return max(0, n + p + 1) }
         return 0
+    }
+
+    // MARK: 删除
+
+    private static func deleteRule(_ stem: String, _ r: NameRule) -> String {
+        let chars = Array(stem)
+        guard !chars.isEmpty else { return stem }
+
+        let start = deletionStart(r.position, count: chars.count)
+        let end = r.toEnd ? chars.count : min(chars.count, start + max(0, r.count))
+        guard start < end else { return stem }
+
+        return String(chars[0..<start] + chars[end...])
     }
 
     /// 删除起点（0-based）：正数 = 第 N 个字符；负数从末尾数（-1 = 最后一个）
@@ -172,6 +212,33 @@ enum Planner {
         if p > 0 { return min(p - 1, n) }
         if p < 0 { return max(0, n + p) }
         return 0
+    }
+
+    // MARK: 替换
+
+    private static func replaceRule(_ stem: String, _ r: NameRule) -> String {
+        guard !r.text.isEmpty else { return stem }
+        return stem.replacingOccurrences(
+            of: r.text,
+            with: r.replacement,
+            options: r.caseSensitive ? [] : .caseInsensitive
+        )
+    }
+
+    // MARK: 大小写
+
+    private static func changeCase(_ stem: String, _ style: NameRule.CaseStyle) -> String {
+        switch style {
+        case .lower:
+            return stem.lowercased()
+        case .upper:
+            return stem.uppercased()
+        case .capitalize:
+            return stem.capitalized
+        case .sentence:
+            guard let first = stem.first else { return stem }
+            return String(first).uppercased() + stem.dropFirst().lowercased()
+        }
     }
 
     /// 冲突时自动加 `_1` `_2` …，保证目标名唯一。

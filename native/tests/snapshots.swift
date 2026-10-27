@@ -124,21 +124,35 @@ final class Snapper {
 
         let W = DetailPane.ColWidth.self
 
-        // 侧栏四张卡 + 底栏（默认状态：没有位置规则，应显示提示文字）
-        state.edits = []
+        // 侧栏五张卡 + 底栏（默认状态：规则链为空，应显示引导文字）
+        state.rules = []
         state.rebuildPlan(immediate: true)
         shoot("sidebar", SidebarView(), width: Theme.sidebarWidth, height: 780)
 
-        // 侧栏 + 两条位置规则，专门看那块 UI 排得下排不下
-        state.edits = [
-            { var e = NameEdit(); e.kind = .insert; e.position = 4; e.text = "-"; return e }(),
-            { var e = NameEdit(); e.kind = .delete; e.position = 1; e.count = 4; return e }(),
+        // 侧栏 + 五种规则各一条，专门看那块 UI 排得下排不下
+        state.rules = [
+            { var r = NameRule(); r.kind = .insert; r.anchor = .position
+              r.position = 4; r.text = "-"; return r }(),
+            { var r = NameRule(); r.kind = .delete; r.position = 1; r.count = 4; return r }(),
+            { var r = NameRule(); r.kind = .replace; r.text = "IMG_"; r.replacement = "照片_"; return r }(),
+            { var r = NameRule(); r.kind = .strip; r.charset = .space; return r }(),
+            { var r = NameRule(); r.kind = .changeCase; r.caseStyle = .lower; return r }(),
         ]
         state.rebuildPlan(immediate: true)
-        shoot("sidebar-edits", SidebarView(), width: Theme.sidebarWidth, height: 780)
+        shoot("sidebar-rules", SidebarView(), width: Theme.sidebarWidth, height: 1180)
+
+        // 只留两条真正干活的规则，拍表格看「新文件名」列的实际结果
+        state.rules = [
+            { var r = NameRule(); r.kind = .replace; r.text = "IMG_"; r.replacement = "照片_"; return r }(),
+            { var r = NameRule(); r.kind = .insert; r.anchor = .position
+              r.position = 4; r.text = "-"; return r }(),
+        ]
+        state.rebuildPlan(immediate: true)
+        shoot("detail-pane-rules", DetailPane(),
+              width: 1360 - Theme.sidebarWidth - 1, height: 800)
 
         // 恢复干净状态，后面的图不受影响
-        state.edits = []
+        state.rules = []
         state.rebuildPlan(immediate: true)
 
         // 表格里的单元格：列宽够不够，只有按真实列宽渲染才看得出来
