@@ -2,7 +2,7 @@
 # 构建原生版 ShutterSort.app
 #
 # 不需要 Xcode —— 只用 Command Line Tools 里的 swiftc 就能编出完整的 .app。
-# 图标沿用 packaging/icons 下现成的那份（和 Python 版同一个 logo，保持品牌一致）。
+# 图标用 Resources/AppIcon.icns；想重新生成就跑 python3 Resources/make_icon.py。
 #
 # 用法：
 #   ./build.sh                编译并组装 dist/ShutterSort.app（只编本机架构，日常调试用）
@@ -12,7 +12,6 @@
 #   ./build.sh --universal --zip --dmg   发布全套
 #
 # 最低系统版本 14.0：界面用了 onChange(of:initial:) 等 macOS 14 的 API。
-# 更老的系统（Ventura 及以下）请继续用 Python 版。
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -35,9 +34,9 @@ for arg in "$@"; do
     esac
 done
 
-# ---- 版本号从 Python 版读，单一真相源
-VERSION="$(grep -E '^VERSION *= *"' "$REPO/src/server.py" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
-[ -n "$VERSION" ] || { echo "读不到版本号"; exit 1; }
+# ---- 版本号读仓库根的 VERSION 文件，单一真相源
+VERSION="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
+[ -n "$VERSION" ] || { echo "读不到版本号（仓库根应有 VERSION 文件）"; exit 1; }
 echo "==> 版本 $VERSION"
 
 SWIFT_VER="$(swift --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)"
@@ -86,11 +85,8 @@ cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 /usr/bin/plutil -lint "$BUNDLE/Contents/Info.plist" >/dev/null
 
 # ---- 图标
-ICNS=""
-for cand in "$REPO/packaging/icons/app.icns" "$REPO/packaging/icons/AppIcon.icns"; do
-    [ -f "$cand" ] && ICNS="$cand" && break
-done
-if [ -n "$ICNS" ]; then
+ICNS="Resources/AppIcon.icns"
+if [ -f "$ICNS" ]; then
     cp "$ICNS" "$BUNDLE/Contents/Resources/AppIcon.icns"
     echo "==> 图标 $(basename "$ICNS")"
 else

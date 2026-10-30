@@ -10,19 +10,20 @@
 
 ![macOS](https://img.shields.io/badge/macOS-14%2B%20%E5%8E%9F%E7%94%9F%20SwiftUI-000000.svg)
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)
+![Universal](https://img.shields.io/badge/arm64%20%7C%20x86__64-universal-lightgrey.svg)
 
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
 
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
-
-![Tests](https://img.shields.io/badge/self--test-72%20pass-brightgreen.svg)
+![Tests](https://img.shields.io/badge/self--test-3878%20pass-brightgreen.svg)
 
 简体中文 · [English](README.en.md)
 
 </div>
 
 ---
+
+> **这是一个 macOS 应用。** 从 1.8.0 起不再提供 Windows / Linux 版 ——
+> 与其三个平台都做一半，不如把一个做好。旧版 exe 仍留在 Release 历史里，但不再更新。
 
 ## 先看一眼效果
 
@@ -56,12 +57,10 @@ IMG_20240506_154421.HEIC
 
 **一、下载**
 
-| 你的电脑 | 下什么 | 怎么装 |
-| --- | --- | --- |
-| Windows 10 / 11 | `ShutterSort.exe` | 双击就能用，不用装任何东西 |
-| macOS 14 或更新 | `ShutterSort-x.x.x-macOS-universal.dmg` | 双击挂载，把图标拖进「应用程序」 |
+到 [Releases](https://github.com/js-ping/shuttersort/releases) 页面下载最新的
+`ShutterSort-x.x.x-macOS-universal.dmg`，双击挂载，把图标拖进「应用程序」。
 
-到 [Releases](https://github.com/js-ping/shuttersort/releases) 页面下载。
+通用二进制，Apple 芯片和 Intel 机器都能跑，不用挑。系统要求 macOS 14（Sonoma）或更新。
 
 **二、把装了照片的文件夹拖进窗口**
 
@@ -74,10 +73,8 @@ IMG_20240506_154421.HEIC
 > 第一次用，建议先把要整理的文件夹复制一份副本出来试手。
 > 改错了虽然能撤销，但拿副本练最省心。
 
-> ⚠️ **第一次打开会被系统拦一下**，因为没买代码签名证书（苹果一年 688 元，微软更贵）。
-> Windows：点「更多信息」→「仍要运行」。
-> macOS：在访达里**右键点 App → 选「打开」→ 再点「打开」**。
-> 只需要放行一次，之后双击就正常了。
+> ⚠️ **第一次打开会被系统拦一下**，因为没买苹果的签名证书（一年 688 元）。
+> 在访达里**右键点 App → 选「打开」→ 再点「打开」**，只需要放行一次，之后双击就正常了。
 
 ## 它帮你解决什么
 
@@ -103,6 +100,8 @@ IMG_20240506_154421.HEIC
 
 ## 界面
 
+> 下面是界面示意，用来说明各块区域在干什么；实际界面以应用为准。
+
 **改名前先看清楚，这时候文件还没被动过：**
 
 ![拍摄时间改名器主界面](screenshots/01-main.png)
@@ -119,7 +118,7 @@ IMG_20240506_154421.HEIC
 
 ![改名记录可撤销](screenshots/04-history.png)
 
-**相机时钟错了也不怕 —— 整体平移时间，只改文件名、不改照片里的数据：**
+**相机时钟错了也不怕 —— 整体平移时间、不改照片里的数据；左边那摞「改名规则」就是名字中间那段的处理顺序：**
 
 ![时间校正](screenshots/05-correction.png)
 
@@ -144,7 +143,7 @@ IMG_20240506_154421.HEIC
 
 前缀和后缀只能加在名字两头，可真正碍事的那段常常在中间：相机自动加的 `IMG_`、修图软件追的 `_edited`、多余的秒数、导入工具塞的一大串编号。
 
-这条功能（**仅 macOS 版**）在名字拼好之后依次动刀，五种规则：
+这条功能在名字拼好之后依次动刀，五种规则：
 
 | 规则 | 做什么 | 例子 |
 | --- | --- | --- |
@@ -169,8 +168,6 @@ IMG_20240506_154421.HEIC
 - **自动编号**：会破坏「重复扫一遍结果不变」。只勾选部分文件时编号就漂了，等于把最核心的承诺废掉。同秒连拍已经按亚秒排好，重名已经有 `_1` `_2`，不需要再编一套号
 - **正则 / 脚本**：门槛太高、容易误操作，跟「傻瓜式」的定位冲突
 - **改扩展名 / 随机化 / 音译**：跟拍摄时间没关系；改扩展名对照片有风险
-
-Windows / Linux 版暂时没有这个功能，代码与 v1.5.0 相同。
 
 </details>
 
@@ -200,7 +197,7 @@ Windows / Linux 版暂时没有这个功能，代码与 v1.5.0 相同。
 五层都没有，就跳过并标成「无时间戳」，**不会瞎猜一个时间给你**。
 
 <details>
-<summary>想看每一层的具体优先级、以及「不装 exiftool 行不行」</summary>
+<summary>想看每一层的具体优先级、以及「要不要装 exiftool」</summary>
 
 | 顺序 | 来源 | 说明 |
 | :-: | --- | --- |
@@ -251,11 +248,15 @@ Windows / Linux 版暂时没有这个功能，代码与 v1.5.0 相同。
 
 **Q：改名之后，手机相册还认得出来吗？**
 
-这个工具是给「已经导到电脑上」的文件用的。手机里的照片改名不在它的范围内 —— 改的是电脑 / 移动硬盘上的文件，不会影响手机相册。
+这个工具是给「已经导到电脑上」的文件用的。手机里的照片改名不在它的范围内 —— 改的是 Mac 或移动硬盘上的文件，不会影响手机相册。
 
 **Q：为什么有些文件显示「无时间戳」？**
 
 这些文件的信息被处理掉了：微信 / QQ / WhatsApp 转发过的、截图工具二次编辑过的、在线编辑器保存过的。可以在「时间戳来源」里开启文件时间兜底（但那是文件存到电脑的时间，不一定等于拍摄时间），或者就保持跳过。
+
+**Q：需要装 exiftool 吗？**
+
+不需要。装了会更准一层（尤其是冷门相机的 RAW），不装也不缺功能。全部解析都是程序自己做的，不依赖任何外部工具。
 
 **Q：时间是差了几个小时？**
 
@@ -268,60 +269,45 @@ Windows / Linux 版暂时没有这个功能，代码与 v1.5.0 相同。
 - `内嵌·mvhd 创建时间` —— 内置解析器直接读容器里的 UTC 秒数再换成本地时间，是对的
 - `exiftool·QuickTime:CreateDate` —— 走 exiftool。**v1.3.1 之前**这里有时区 bug：QuickTime 的时间按 UTC 存，而 exiftool 默认按本地时间解释，于是整整早一个时区（+08:00 就是早 8 小时）。v1.3.1 起已修正，与内置解析器结果一致
 
-顺便说：同一个文件，装没装 exiftool 差 8 小时 —— 这正是它容易被忽略的原因。
+**Q：能在 Windows 或 Linux 上用吗？**
 
-**Q：Windows 上双击没反应 / 被 SmartScreen 拦下？**
+不能了。从 1.8.0 起只做 macOS 原生版，Windows / Linux 支持已经移除，旧版 exe 不再更新也不再修问题。
 
-被拦下是没买代码签名证书的正常现象：点「更多信息」→「仍要运行」。如果完全没反应，改用源码模式双击 `start.bat`，它会打印出具体报错。
+想在这些系统上做同样的事，思路是：先用 exiftool 之类的工具把时间导出来，再按时间批量重命名。这个工具当初就是这么拼出来的，只是把它做成了一键操作。
 
-**Q：Windows 上 HEIC 照片看不到缩略图？**
+**Q：M 系列芯片和 Intel 机器都能用吗？**
 
-HEIC 得借外部工具转图。macOS 有系统自带的，Windows / Linux 需要另装 ImageMagick（`winget install ImageMagick`）或 ffmpeg。不装也不影响改名，只是列表里显示一个占位图标。
-
-**Q：支持 Windows / Linux 吗？**
-
-支持。三个平台同一份代码、同样的功能，自检在三个系统上都会跑。Windows 上的「选择文件夹」用系统原生对话框，中文路径不会乱码。
+都能。发布的是 universal 二进制（arm64 + x86_64 合一），同一个 dmg 通用。
 
 ## 关于隐私
 
-- ❌ **不联网**。macOS 原生版连本地端口都不开；Python 版的服务只监听 `127.0.0.1`，外面连不进来
+- ❌ **不联网**。这个 App 一个字节都不发出去，连本地端口都不开
 - ❌ **不上传**任何文件、文件名或拍摄信息
 - ❌ **不改文件内容**。只做重命名（勾了归档才会多一步移动）
 - ✅ 重名有保护，绝不覆盖已有文件
-- ✅ 全部自检都在系统临时目录里跑，不碰你的真实文件
-- ✅ Windows 的 exe 由公开的 GitHub Actions 构建，构建过程可查
+- ✅ 全部测试都在系统临时目录里跑，不碰你的真实文件
+- ✅ 构建过程公开，GitHub Actions 的每一步都能查
 
 ## 给想改代码的人
 
 <details>
 <summary>从源码运行</summary>
 
-**Windows**（要求 Python 3.8+，安装时第一屏要勾选 `Add python.exe to PATH`）：
-
-```bat
-git clone https://github.com/js-ping/shuttersort.git
-cd shuttersort
-start.bat
-```
-
-**macOS / Linux**（Python 3.8+，macOS 自带）：
+要求：macOS 14+，装了命令行工具（`xcode-select --install`，不需要完整 Xcode）。
 
 ```bash
 git clone https://github.com/js-ping/shuttersort.git
-cd shuttersort
-./start.command
+cd shuttersort/native
+./build.sh                 # 编出 dist/ShutterSort.app
+open dist/ShutterSort.app
 ```
 
-没有 `pip install`，没有虚拟环境，没有配置文件 —— 纯标准库。
+没有 `pip install`，没有虚拟环境，没有配置文件。整个程序用系统自带的 swiftc 编，零第三方依赖。
 
 </details>
 
 <details>
 <summary>自己打包</summary>
-
-**Windows**：双击 `build_exe.bat`，自动装 PyInstaller、生成图标，打出 `dist\ShutterSort.exe`。
-
-**macOS 原生版**（只要 `swiftc`，`xcode-select --install` 装命令行工具即可，不需要 Xcode）：
 
 ```bash
 cd native
@@ -331,45 +317,45 @@ cd native
 跑完在 `native/dist/` 里得到三样：能直接双击的 `ShutterSort.app`、
 发给别人的 `ShutterSort-<版本>-macOS-universal.dmg` 和同名 `.zip`。
 
-**自动打包**：推一个 `v*` 标签，GitHub Actions 会开真实 Windows 和 macOS 机器各打一份，
-自动挂到对应的 Release。也可以到 Actions 页面手动点「Run workflow」只打包不发布。
+**自动打包**：推一个 `v*` 标签，GitHub Actions 会开真实 macOS 机器打一份并挂到 Release。
+也可以到 Actions 页面手动点「Run workflow」只打包不发布。
+
+版本号的唯一来源是仓库根的 `VERSION` 文件，改那一处就行，`build.sh` 会自动写进 Info.plist。
 
 </details>
 
 <details>
 <summary>跑测试</summary>
 
+**逐字段对照**是发布前最重要的一道闸。整条解析链是 Swift 重写的，最怕「界面好看但时间读错了」，
+所以 `run_parity.py` 会造一批覆盖各种格式的样本（HEIC、WebP、大端 TIFF、带时区偏移的 EXIF、
+子目录同秒冲突），把时间、亚秒、来源、新文件名、冲突标记全量比一遍，任何一个字段不一致就非零退出。
+最后还会把 6 个样本真改一遍名字、复扫验「重复扫描不会乱改」、导 CSV、再撤销回来。
+
 ```bash
-python3 tests/selftest.py           # 72 项自检
-python3 native/tests/run_parity.py  # 原生版 vs Python 版，14 个场景逐字段对照
+cd native
+python3 tests/run_parity.py      # 14 个场景，累计 3878 项
 ```
 
-原生版是 Swift 重写的，最怕「界面好看但时间读错了」。所以 `run_parity.py` 会造一批覆盖各种格式的样本
-（HEIC、WebP、大端 TIFF、带时区偏移的 EXIF、子目录同秒冲突），把两版的时间、亚秒、来源、
-新文件名、冲突标记全量比一遍，任何一个字段不一致就非零退出。最后还会把 6 个样本真改一遍名字、
-复扫验「重复扫描不会乱改」、导 CSV、再撤销回来。
+对照基准放在 `native/tests/reference/`（跑了两年的 Python 实现）。它只给测试用、不是能运行的产品 ——
+留着它，是为了让 Swift 版每一步都有个可信的参照物。
 
-改名规则的边界单独一套闸门 —— 这类「数错一位」的 bug 肉眼极难发现：
+改名规则的边界单独一套闸门，这类「数错一位」的 bug 肉眼极难发现：
 
 ```bash
-swiftc -O native/Sources/Core/*.swift native/Sources/CLI/main.swift -o /tmp/ss-cli
+swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o /tmp/ss-cli
 /tmp/ss-cli edit-test        # 38 项：五类规则 + 0/负数/超长/锚点/叠加/停用/中文/扩展名
 ```
 
 界面也能离线验收，不用盯着屏幕点：
 
 ```bash
-native/tests/snapshots.sh            # 浅色
-native/tests/snapshots.sh --dark     # 深色
+tests/snapshots.sh            # 浅色
+tests/snapshots.sh --dark     # 深色
 ```
 
-会把侧栏、表格单元格、右半栏、五个弹窗离屏渲染成 PNG（`$TMPDIR/shuttersort-snapshots/out`），
+会把侧栏、表格单元格、右半栏、几个弹窗离屏渲染成 PNG（`$TMPDIR/shuttersort-snapshots/out`），
 用来核对列宽够不够、字有没有被裁、深浅色下看不看得清。
-
-72 项自检覆盖：内置解析器（9 种格式 → 预期时间）、文件名规则、命名引擎、HTTP 全链路
-（扫描 → 预览 → 改名 → 幂等复扫 → 撤销）、勾选改名（只动选中的、拒绝扫描结果之外的路径）、
-按文件列表扫描（路径去重、跨目录求公共父目录、无效路径过滤）、接口安全（路径穿越防护）。
-全程在临时目录操作，跑完自动清理。
 
 </details>
 
@@ -379,22 +365,19 @@ native/tests/snapshots.sh --dark     # 深色
 | 工具 | 作用 | 没装会怎样 |
 | --- | --- | --- |
 | `exiftool` | 第一优先级的元数据提取，覆盖度最高 | 自动改用内置解析器，功能完整 |
-| `ffmpeg` | 视频缩略图预览；HEIC 缩略图（备用） | 显示 🎬 图标，不影响改名 |
-| `magick`（ImageMagick） | HEIC 缩略图（Windows / Linux 上不装只能看占位图标） | 显示占位图标，不影响改名 |
+| `ffmpeg` | 视频缩略图预览 | 显示 🎬 图标，不影响改名 |
 
 ```bash
-brew install exiftool ffmpeg                                    # macOS
-winget install exiftool ffmpeg                                  # Windows
-sudo apt install libimage-exiftool-perl ffmpeg imagemagick      # Debian / Ubuntu
+brew install exiftool ffmpeg
 ```
 
-**macOS 原生版这三个全都不用装**：缩略图走系统 ImageIO（HEIC / HEIF / RAW / TIFF 全认）
-和 AVFoundation（视频抽第 0.5 秒的帧），exiftool 装了会更准、不装也完整。
+缩略图默认走系统 ImageIO（HEIC / HEIF / RAW / TIFF 全认）和 AVFoundation（视频抽第 0.5 秒的帧），
+这两个装了只是让结果更准、覆盖更全。
 
 </details>
 
 <details>
-<summary>和市面上的批量改名工具比，差别在哪</summary>
+<summary>和其他批量改名工具比，差别在哪</summary>
 
 | 能力 | 普通批量改名工具 | 这个 |
 | --- | :---: | :---: |
@@ -408,8 +391,8 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick      # Debian / Ubunt
 | 重复执行结果稳定 | 常出问题 | ✅ |
 | **同秒连拍按亚秒排先后** | 按读取顺序 | ✅ 编号跟快门一致 |
 | **时间校正**（相机钟错 / 忘了调时区） | 少有支持 | ✅ ±天时分，还能按参考文件反推 |
+| 名字里任意位置增删改 | 要写正则 | ✅ 五类规则 + 可点字符标尺 |
 | 安装依赖 | 要装一堆包 | ✅ 零第三方依赖 |
-| 平台 | 多半只支持一个 | ✅ Windows / macOS / Linux，macOS 为原生应用 |
 
 </details>
 
@@ -417,24 +400,17 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick      # Debian / Ubunt
 
 ```
 ShutterSort/
-├── native/                    ← macOS 原生版（SwiftUI，v1.5.0 起）
+├── VERSION                    ← 版本号唯一来源
+├── native/                    ← 全部源码，一个原生 macOS App
 │   ├── build.sh               ← 一条命令编出 .app + zip + dmg
-│   ├── Sources/Core/          ← 时间戳解析引擎（Swift 重写，含 TIFF/EXIF/ISOBMFF 解析）
+│   ├── Resources/             ← Info.plist、图标、图标生成脚本
+│   ├── Sources/Core/          ← 时间戳解析引擎（TIFF/EXIF/ISOBMFF 全自己解）
 │   ├── Sources/UI/            ← SwiftUI 界面（三栏、表格、五个弹窗、说明书）
 │   ├── Sources/CLI/           ← 对照测试用的命令行入口
-│   └── tests/                 ← run_parity.py 逐字段对照、snapshots.sh 离屏快照
-├── start.command / start.bat  ← 双击启动（macOS·Linux / Windows，Python 版）
-├── build_exe.bat              ← 双击打包出 Windows 免安装 exe
-├── src/
-│   ├── media_time.py          ← 时间戳解析引擎（Python 版，Windows / Linux 在用）
-│   ├── server.py              ← 本地服务 + 全部接口
-│   ├── app_main.py            ← 窗口入口（Windows .exe 用）
-│   └── static/index.html      ← 界面（单文件，无构建步骤）
-├── tests/selftest.py          ← 72 项回归自检
-├── packaging/                 ← Windows 打包 + 图标
-│   ├── version_info.txt       ← 打进 exe 的版本资源
-│   └── ci/RELEASE_NOTES.md    ← Release 正文（发版前改这一份）
-├── .github/workflows/         ← 打标签自动打出 exe 和 .app，一起挂到 Release
+│   └── tests/                 ← 逐字段对照、离屏快照、reference/ 参考实现
+├── .github/
+│   ├── workflows/             ← 打标签自动编译并挂到 Release
+│   └── RELEASE_NOTES.md       ← Release 正文（发版前改这一份）
 ├── screenshots/               ← README 截图
 └── rename-history/            ← 运行时生成：撤销记录（不要删）
 ```

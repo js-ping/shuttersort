@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """和 native 版的 dump 输出同构 JSON，用于对照。
 
-刻意不复用 server.py 的 _run_scan（它带线程池和 job 状态），
-这里直接调 probe_file + build_plan，保证两边比的是同一层语义。
+参考实现（原 Python 产品版的核心）放在 reference/ 下，只给测试用。
+刻意不复用任何带线程池 / HTTP 状态的代码，这里直接调 probe_file + build_plan，
+保证两边比的是同一层语义。
 """
 import argparse
 import json
@@ -10,17 +11,11 @@ import os
 import sys
 from pathlib import Path
 
-# 默认按本文件位置反推仓库（native/tests/pydump.py → 仓库根），
-# 这样仓库换了位置、被 clone 到别的机器上都不用改代码。
-REPO = Path(os.environ.get(
-    "SHUTTERSORT_REPO",
-    str(Path(__file__).resolve().parents[2])))
-if not (REPO / "src" / "media_time.py").exists():
-    sys.exit(f"找不到仓库：{REPO}（用 SHUTTERSORT_REPO 指定）")
-sys.path.insert(0, str(REPO / "src"))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE / "reference"))
 
 import media_time as mt          # noqa: E402
-import server                    # noqa: E402
+import naming                    # noqa: E402
 
 
 def main():
@@ -44,14 +39,14 @@ def main():
     if a.file:
         files = [Path(p) for p in a.file]
     elif a.dir:
-        files = list(server._iter_files(Path(a.dir),
-                                        not a.no_recursive,
-                                        not a.all_files))
+        files = list(naming.iter_files(Path(a.dir),
+                                       not a.no_recursive,
+                                       not a.all_files))
     else:
         sys.exit("需要 --dir 或 --file")
 
     opts = mt.ReadOptions(
-        use_exiftool=not a.no_exiftool and server.EXIFTOOL.available,
+        use_exiftool=not a.no_exiftool and naming.EXIFTOOL.available,
         parse_filename=not a.no_filename,
         read_xmp_sidecar=True,
         read_takeout_json=True,
@@ -63,7 +58,7 @@ def main():
 
     exif_map = {}
     if opts.use_exiftool and files:
-        exif_map = server.EXIFTOOL.batch([str(p) for p in files])
+        exif_map = naming.EXIFTOOL.batch([str(p) for p in files])
 
     rows = []
     for p in files:
@@ -93,7 +88,7 @@ def main():
 
     rows.sort(key=lambda r: (r["tsIso"] or "9999", r["mtime"] or 0, r["name"].lower()))
 
-    plan = server.build_plan(rows, {
+    plan = naming.build_plan(rows, {
         "format": a.format,
         "prefix": a.prefix,
         "suffix": a.suffix,

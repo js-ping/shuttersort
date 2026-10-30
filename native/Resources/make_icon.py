@@ -1,7 +1,7 @@
 """生成 App 图标：紫底白色时钟，macOS 11+ 圆角规范（824/1024 内容区）。
 
 纯标准库实现，输出 icons/app_icon.iconset/ 所需的全部尺寸，再用 iconutil 合成 .icns。
-用法：python3 packaging/make_icon.py
+用法：python3 native/Resources/make_icon.py
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def write_png(path: Path, size: int) -> None:
 
 
 def main() -> int:
-    out = Path(__file__).resolve().parent / "icons"
+    out = Path(__file__).resolve().parent
     iconset = out / "app_icon.iconset"
     iconset.mkdir(parents=True, exist_ok=True)
 
@@ -124,8 +124,8 @@ def main() -> int:
                             "--out", str(iconset / f"icon_{s // 2}x{s // 2}@2x.png")],
                            stdout=subprocess.DEVNULL, check=False)
 
-    icns = out / "app.icns"
-    print("合成 app.icns …")
+    icns = out / "AppIcon.icns"
+    print("合成 AppIcon.icns …")
     r = subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(icns)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not icns.exists():

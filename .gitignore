@@ -9,12 +9,8 @@ venv/
 build/
 dist/
 *.spec
-packaging/build/
-packaging/dist/
-packaging/*.spec
 *.app
-*.exe
-packaging/icons/app_icon.iconset/
+native/Resources/app_icon.iconset/
 
 # 运行时数据（撤销记录 / 日志）
 rename-history/

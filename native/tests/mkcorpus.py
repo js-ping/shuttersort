@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""造一批覆盖各种格式的样本，供 Swift / Python 两版对照。
+"""造一批覆盖各种格式的样本，供逐字段对照测试使用。
 
-用 tests/selftest.py 里现成的构造器（那些样本本身就是踩坑踩出来的），
-再补上自检没覆盖的：大端 TIFF、WebP、HEIC、子目录、带时区偏移的 EXIF。
+样本构造器放在 reference/mkfixtures.py（那些样本本身就是踩坑踩出来的），
+再补上没覆盖的：大端 TIFF、WebP、HEIC、子目录、带时区偏移的 EXIF。
 """
 import json
 import os
@@ -13,12 +13,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO = Path(os.environ.get(
-    "SHUTTERSORT_REPO", str(Path(__file__).resolve().parents[2])))
-sys.path.insert(0, str(REPO / "tests"))
-sys.path.insert(0, str(REPO / "src"))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE / "reference"))
 
-import selftest as st          # noqa: E402  （有 __main__ 保护，import 安全）
+import mkfixtures as st        # noqa: E402  （纯工具函数，import 无副作用）
 
 # 默认写到临时目录，也可以 --out 指定
 OUT = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv \

@@ -2,6 +2,46 @@
 
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## 1.8.0 — 2026-10-31
+
+**只做 macOS。Windows / Linux 版移除。**
+
+### 为什么砍
+
+从 1.5.0 起 macOS 已经是原生的 SwiftUI 应用，Windows / Linux 还留在 Python 版上。
+两条代码线并行意味着：每个新功能只能进一边；Windows 那边还有 SmartScreen 拦截、
+HEIC 要另装 ImageMagick、打包靠 PyInstaller 一堆可变因素 —— 修起来都在钱和时间的反方向。
+
+与其三个平台都做一半，不如把一个做好。**1.7.0 及之前的 exe 仍留在 Release 历史里，
+但不再更新、不再修问题。**
+
+### 移除
+
+- `src/` 下整个 Python 版（本地服务、网页界面、解析引擎）
+- `start.bat` / `start.command` / `build_exe.bat` 三个启动与打包入口
+- `tests/selftest.py`（72 项，测的是已删除的 HTTP 接口）
+- `packaging/` 下 PyInstaller 相关的一切（`.ico`、版本资源、图标生成）
+- CI 里的 `windows` job
+
+### 保留
+
+- **`native/tests/reference/`**：Python 版的时间解析与命名逻辑，降级为**测试基准**。
+  逐字段对照测试靠它当参照物 —— 3878 项断言全部还在，一个没少。
+  它不提供服务、不启动界面，只被 `run_parity.py` 调用
+- 图标生成脚本与 `.icns` 移到 `native/Resources/`，Release 正文移到 `.github/RELEASE_NOTES.md`
+
+### 变更
+
+- **版本号真相源**从 `src/server.py` 的 `VERSION` 常量改成仓库根的 `VERSION` 文件，
+  `build.sh` 直接读，一处改完全局生效
+- 新增 `--open <目录>` 启动参数：从终端直接扫描某个文件夹，跳过选择面板
+- CI 只剩一个 `macos` job，发布步骤并入同一 job（不再需要跨平台协调产物）
+- 文档全面改写：只讲 macOS，删掉所有 Windows / Linux 说明与问答
+
+### 不变
+
+功能、界面、解析结果、撤销记录格式与 1.7.0 **完全一致**。这次只动平台与工程结构。
+
 ## 1.7.0 — 2026-10-27
 
 **macOS 原生版：把「按位置增删」升级成完整的改名规则链。Windows / Linux 代码未变。**

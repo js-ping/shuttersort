@@ -4,26 +4,31 @@
 
 **Rename your phone photos to the time they were actually taken.**
 
-Afterwards the folder sorts itself chronologically — exactly the order you see in your camera roll.
+Once renamed, the whole folder sorts itself by capture time — exactly the order you see in your phone's gallery.
 
-*(Chinese name: 拍摄时间改名器)*
+![License: MIT](https://img.shields.io/badge/License-MIT-8a63d2.svg)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-8a63d2.svg)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS-14%2B%20native%20SwiftUI-000000.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)](https://www.python.org/)
-[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-[![Tests](https://img.shields.io/badge/self--test-72%20pass-brightgreen.svg)](#for-developers)
+![macOS](https://img.shields.io/badge/macOS-14%2B%20native%20SwiftUI-000000.svg)
 
-[中文说明](README.md) · English
+![Universal](https://img.shields.io/badge/arm64%20%7C%20x86__64-universal-lightgrey.svg)
+
+![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
+
+![Tests](https://img.shields.io/badge/self--test-3878%20pass-brightgreen.svg)
+
+[简体中文](README.md) · English
 
 </div>
 
 ---
 
-## Before and after
+> **This is a macOS app.** Starting with 1.8.0 there is no Windows or Linux build —
+> better to do one platform properly than three halfway. Old `.exe` files remain in the
+> Release history but are no longer updated.
 
-Photos come off a phone as a bare serial number. Three files, and nothing says when they were taken:
+## See it first
+
+Straight off your phone, the names look like this — three files, no idea when they were shot:
 
 ```
 IMG_8734.HEIC
@@ -31,7 +36,7 @@ IMG_8734.MOV
 IMG_8741.HEIC
 ```
 
-After:
+Afterwards:
 
 ```
 IMG_20240506_153008.HEIC
@@ -39,208 +44,189 @@ IMG_20240506_153012.MOV
 IMG_20240506_154421.HEIC
 ```
 
-That's 6 May 2024, just past 3 pm. Sorting by name is now sorting by time, so search, backup and transferring to another drive all just work.
+Three in the afternoon on May 6, 2024, at a glance. Sort by name and you sort by time — searching, backing up, and moving files between devices all get easier.
 
-**It never touches your photos.** Renames only — not a single byte of file content changes. And it can be undone in one click.
+**It never touches your photos.** Only the names change; not a single byte of file content. Renamed by mistake? One click undoes it.
 
-> **Good fit:** photo libraries that have grown beyond finding things by filename; bulk exports from WhatsApp, WeChat or Google Photos; a whole batch shot with a camera clock that was set wrong.
+> **Good fit**: photo libraries that have grown past the point where filenames mean anything;
+> bulk exports from WeChat or Google Photos; a whole batch shot with a camera whose clock was wrong.
 >
-> **Not a fit:** auto-sorting by faces, places or events; editing the metadata inside photos; cloud sync. This does one thing — renaming — and tries to do it properly.
+> **Not a fit**: face / place / event auto-tagging; editing the metadata inside photos; cloud sync.
+> It does one thing — renaming — and tries to do it properly.
 
 ## Three steps
 
 **1. Download**
 
-| Your computer | File | Install |
-| --- | --- | --- |
-| Windows 10 / 11 | `ShutterSort.exe` | Double-click. Nothing to install. |
-| macOS 14 or newer | `ShutterSort-x.x.x-macOS-universal.dmg` | Double-click to mount, drag the icon into *Applications* |
+Grab the latest `ShutterSort-x.x.x-macOS-universal.dmg` from
+[Releases](https://github.com/js-ping/shuttersort/releases), double-click to mount, drag the
+icon into **Applications**.
 
-Get them from [Releases](https://github.com/js-ping/shuttersort/releases).
+Universal binary — Apple Silicon and Intel both work, no choosing. Requires macOS 14 (Sonoma) or newer.
 
-**2. Drop the folder onto the window**
+**2. Drag the folder with your photos into the window**
 
-Or use *Choose folder*, or hand-pick a few files.
+You can also use "Choose Folder", or pick a handful of individual files.
 
-**3. Check the preview, click *Rename***
+**3. Check the preview on the right, then click "Start renaming"**
 
-The preview lists what every file will be called. If it looks wrong, don't click — nothing has changed yet.
+The preview lists what every file will be called. If something looks wrong, just don't click —
+nothing has been changed at that point.
 
-> First time? Copy the folder you want to tidy and practise on the copy. Undo works, but a copy is cheaper than trusting anything.
+> First time? Copy the folder you want to tidy up and practise on the copy.
+> Undo works, but a copy is the most worry-free way to learn the buttons.
 
-> ⚠️ **The first launch gets blocked by the OS**, because there's no paid code-signing certificate
-> (US$99/year from Apple, more from Microsoft).
-> Windows: *More info* → *Run anyway*.
-> macOS: **right-click the app → Open → Open**.
-> That's a one-time approval; double-clicking works from then on.
+> ⚠️ **macOS will block the first launch**, because the app isn't code-signed (an Apple
+> certificate costs $99/year). In Finder, **right-click the app → Open → Open**.
+> You only need to allow it once; after that a normal double-click works.
 
-## What it handles
+## What it solves
 
-Phone shots, videos, files forwarded through messaging apps, Google Photos exports, camera and drone footage — if the name carries no time, it digs the real one out.
+Shot on a phone, forwarded through a chat app, exported from Google Photos, taken with a camera or a drone — if the name has no time in it, this finds the real one.
 
 | Your situation | What it does |
 | --- | --- |
-| `IMG_8734.HEIC` straight off an iPhone | Reads the capture time stored inside the photo |
-| `IMG_8734.MOV` recorded on the phone | Reads the creation time stored in the video container |
-| Forwarded through WeChat or WhatsApp, metadata stripped | Recovers the time from the filename |
+| `IMG_8734.HEIC` exported from an iPhone | Reads the capture time stored inside the photo |
+| `IMG_8734.MOV` recorded on a phone | Reads the creation time recorded in the video container |
+| Forwarded through WeChat / WhatsApp, metadata stripped | Pulls the time out of the filename |
 | A pile exported from Google Photos | Reads the `.json` sidecar that came with the export |
-| Continuous burst, several frames in the same second | Reads sub-second precision; numbering follows the shutter |
-| Camera clock was off by 8 hours | Shifts every name; filenames only, EXIF untouched |
-| Names cluttered with `_edited`, stray digits, extra underscores | Cleans them up with rename rules |
+| Burst shots, several landing in the same second | Reads sub-second precision, so order matches the shutter |
+| Camera clock was off by 8 hours | Shifts the whole batch — filenames only, originals untouched |
+| Names full of junk (`_edited`, stray numbers) | Cleans them up with rename rules |
 
-**It tells you where each timestamp came from.** Every row carries a small coloured tag —
-`embedded·EXIF`, `filename`, `Takeout JSON` and so on. You can check each one instead of
-trusting a black box.
+**It tells you where each time came from.** Every row carries a small coloured tag — "Embedded·EXIF", "Filename", "Takeout JSON". You can check them one by one, instead of renaming a hundred files and still not knowing why.
 
-**It only touches what you tick.** Everything is checked after a scan; untick a row and it stays put.
+**It only touches what you tick.** Everything is selected after a scan; anything you untick stays exactly as it was.
 
-**Re-running is safe.** Scan an already-renamed folder again and it reports "no change needed"
-instead of appending another `_1`.
+**Rescanning changes nothing.** Files that are already correct show as "No change needed" — no suffix gets appended twice.
 
-**No timestamp, no guess.** Those files are skipped and labelled, never given a made-up time.
+**No timestamp means skipped.** Those rows are marked "No timestamp" — it will never invent a time to look busy.
 
 ## Screenshots
 
-**Inspect everything before anything moves:**
+> These are illustrative — they show what each area does. The running app is the source of truth.
+
+**Everything is visible before you commit — the files are still untouched here:**
 
 ![Main window](screenshots/01-main.png)
 
-**Click any row to see where its time came from and the raw metadata:**
+**Click any row to see where the time came from and the raw metadata:**
 
-![File detail](screenshots/02-detail.png)
+![File details](screenshots/02-detail.png)
 
-**One more confirmation — how many files, what naming, any collisions:**
+**One more confirmation, listing how many files, what naming options, and any collisions:**
 
-![Confirm](screenshots/03-confirm.png)
+![Rename confirmation](screenshots/03-confirm.png)
 
-**Every run is recorded; undo survives a restart:**
+**Every rename is logged, so undo still works after a reboot:**
 
-![History](screenshots/04-history.png)
+![Rename history with undo](screenshots/04-history.png)
 
-**Wrong camera clock? Shift the batch — filenames only, metadata untouched:**
+**Wrong camera clock? Shift the time — filenames change, the data inside doesn't. The stack of "rename rules" on the left is the processing order for the middle part of the name:**
 
 ![Time correction](screenshots/05-correction.png)
 
 ## Naming
 
-Default output is `IMG_20240506_153008.jpg` — prefix `IMG_` plus `%Y%m%d_%H%M%S`. Both are editable in the sidebar; clear the prefix and you get `20240506_153008.jpg`.
+The default is `IMG_20240506_153008.jpg` — a prefix `IMG_` plus date and time. Both are editable in the left panel; clear the prefix and you get `20240506_153008.jpg`.
 
-How the date combines with the original name:
+Four ways to combine the date with the original name:
 
-| Pattern | Result |
+| Choice | Result |
 | --- | --- |
 | Date only (default) | `20240506_153008.jpg` |
-| Date_original | `20240506_153008_IMG_8734.jpg` |
-| Original_date | `IMG_8734_20240506_153008.jpg` |
-| Original only | `IMG_8734.jpg` (prefix/suffix only, no date) |
+| Date_Original | `20240506_153008_IMG_8734.jpg` |
+| Original_Date | `IMG_8734_20240506_153008.jpg` |
+| Original only | `IMG_8734.jpg` (prefix/suffix only, no time) |
 
-Custom strftime-style formats work too (e.g. `%Y年%m月%d日`), and there's optional **archiving into date subfolders** like `2024/2024-05/`.
+The date format is editable — e.g. `2024-05-06`. It can also **file photos into dated subfolders** automatically, like `2024/2024-05/`.
 
-**Name collisions** get `_1` / `_2` appended. Existing files are never overwritten.
+**If two files resolve to the same name**, `_1`, `_2` is appended automatically. An existing file is never overwritten.
 
-### Rename rules (macOS only)
+### Got a chunk of the name you don't want? Use rename rules
 
-Prefix and suffix can only add text at the ends, but the annoying part is usually in the middle:
-the `IMG_` a camera adds, an `_edited` appended by an editor, redundant seconds, a long ID
-stamped by an import tool.
+Prefix and suffix only reach the two ends, but the annoying part is usually in the middle: the camera's `IMG_`, an editor's `_edited`, redundant seconds, a long ID an import tool bolted on.
 
-Rename rules run **after** the name is assembled, and there are five:
+These run in order on the finished name. Five rule types:
 
 | Rule | What it does | Example |
 | --- | --- | --- |
-| Insert | After character N, or before / after a piece of text | `20240506_153008` → `20240506-_153008` |
-| Delete | From character N, a number of characters — or all the way to the end | `IMG_20240506_153008` → `20240506_153008` |
-| Replace | Swap text; leave the replacement empty to delete | `IMG_` → `photo_` |
-| Strip | Remove every occurrence of a character class | all underscores, spaces, brackets |
-| Case | lower / UPPER / Title Case / Sentence case | `DSC` → `dsc` |
+| Insert | Insert text after position N, or before / after a piece of text | `20240506_153008` → `20240506-_153008` |
+| Delete | Delete N characters from position N, or everything to the end | `IMG_20240506_153008` → `20240506_153008` |
+| Replace | Swap one piece for another; leave the replacement empty to remove | `IMG_` → `photo_` |
+| Strip characters | Remove every space / underscore / bracket / digit at once | Remove all underscores |
+| Change case | lower / UPPER / Title Case / Sentence case | `DSC` → `dsc` |
 
-- Rules run top to bottom; each one's output is the next one's input. Toggle any rule off, or reorder them
-- **No counting required:** a strip of clickable characters sits under every position-based rule.
-  Click a character and the position is set to it. The strip shows the name *as that rule sees it*,
-  so if an earlier rule changed the length, you still click the right character
-- Spaces render as `·` and tabs as `→`, so invisible characters can't be miscounted
+- Rules run top to bottom; each one's output feeds the next. Every rule can be disabled or reordered
+- **You never count positions by hand**: a strip of characters sits under each position-based rule — click one to set the position.
+  That strip shows the name *as it is when this rule runs*, so an earlier rule that turned `IMG_` into `photo_` (a different length) can't make you click the wrong spot
+- Spaces are drawn as `·`, tabs as `→`, so invisible characters can't be miscounted
 
-**Two guarantees:** the extension is never damaged (rules act on the stem, before `.jpg`);
-and if a rule deletes everything, the name reverts to the unedited version instead of leaving
-a bare `.jpg`.
+**Two guard rails**: the extension is never harmed (rules only see the part before `.jpg`); and if a rule deletes everything, the unedited name is used rather than producing a file called `.jpg`.
 
 <details>
-<summary>Why there's no auto-numbering and no regex</summary>
+<summary>Why there is no auto-numbering and no regex</summary>
 
-The rule set was modelled on [ReNamer](https://www.den4b.com/products/renamer), deliberately minus three things:
+The rule set was modelled on [ReNamer](https://www.den4b.com/products/renamer), deliberately dropping three things:
 
-- **Auto-numbering** breaks the promise that re-scanning changes nothing. Number files only partially
-  selected and the numbers drift, which destroys the property the whole tool is built around.
-  Bursts are already ordered by sub-second timestamps and collisions already get `_1`/`_2`
-- **Regex and scripting** raise the bar far too high and invite mistakes — the opposite of what this is for
-- **Changing extensions, randomising, transliterating** have nothing to do with capture times,
-  and rewriting extensions on photos is a risk not worth taking
-
-The Windows / Linux build doesn't have rename rules yet; its code is identical to v1.5.0.
+- **Auto-numbering**: it breaks "rescanning changes nothing". Numbering drifts as soon as you select a subset of files, which kills the core promise. Bursts are already ordered by sub-second precision, collisions already get `_1` `_2`
+- **Regex / scripts**: too high a barrier, too easy to get wrong — it conflicts with "anyone can use this"
+- **Extension changes / randomise / transliterate**: unrelated to capture time; changing extensions on photos is risky
 
 </details>
 
-### Bursts in the same second
+### Several bursts in the same second
 
-Several frames land in one second. The app reads the sub-second part of the timestamp and orders
-within that second by it, so `_1`, `_2` … follow the actual shutter order — not the order the
-directory happened to be read in. Three small digits under the timestamp show that precision.
+A second holds several frames, and their timestamps look identical. The app reads the finer part stored in the file (milliseconds, microseconds) and orders by that — so `_1` and `_2` follow the shutter, and rescanning on another machine won't swap them. The table shows that precision as three small digits.
 
-When sub-second data is missing (some Android cameras omit it), file mtime is the fallback, then
-the filename: a three-level sort key that always produces the same answer.
+### Camera clock was wrong
 
-### Wrong camera clock
+Wrong timezone, forgot to change the clock abroad, a batch of old photos that's all off — tick "Time correction" in the left panel and fill in days / hours / minutes (negative goes back). Filenames are generated from the corrected time.
 
-Time zone set wrong, forgot to change the clock while travelling, or an old batch with broken
-timestamps — the filenames inherit the error. Enable **time correction**, enter `days / hours / minutes`
-(negative shifts backwards), and every name is generated from the corrected time.
+Not sure by how much? Select a suspicious row, click "Don't know the offset? Derive it from the selected row…", and type the photo's **real** capture time — the offset is computed and filled in.
 
-Not sure by how much? Select a suspicious row, click *derive from selected row…*, type the photo's
-**actual** capture time, and the offset is computed for you.
-
-> Correction only affects generated filenames — **EXIF is never rewritten**. The original values stay,
-> so you can set the offset back to zero and redo at any time. Corrected rows carry an orange badge
-> (e.g. `+8h`); hover to see the original timestamp.
+> Correction affects the generated filename only — **EXIF data inside the photo is never rewritten**. The original value stays; set the offset back to 0 and start over.
+> Corrected rows carry an orange tag (e.g. `+8h`); hover to see the original time.
 
 ## Where the time comes from
 
-The app walks a fixed list and **stops at the first usable timestamp**, then tells you which layer it used:
+The app walks down a fixed list and **stops at the first usable answer**, then tells you which layer it came from:
 
-1. **Stored in the photo** — EXIF, XMP, PNG time chunks. Most reliable, tried first
-2. **Stored in the video container** — MP4 / MOV / HEIC creation time, with UTC converted to your local time
-3. **Stored in a sidecar** — the `.json` from a Google Photos export, or an `.xmp` written by an editor
-4. **Written in the filename** — DJI, WhatsApp, screenshots, Chinese dates and six more patterns
-5. **The file's own timestamp** — note this is when the file landed on your disk, *not* when the photo was taken. Off by default; you have to enable it
+1. **Stored in the photo** — the capture time embedded in the file. Most accurate, tried first
+2. **Stored in the video container** — creation time recorded in MP4 / MOV / HEIC; timezone-aware values are converted to your local time
+3. **Stored next to the file** — the `.json` from a Google Photos export, the `.xmp` an editor writes beside the photo
+4. **Written in the filename** — 10 common patterns from DJI, chat apps, screenshot tools, Chinese dates
+5. **The file's own timestamp** — note this is *not* capture time, it's when the file landed on disk. Off by default; you have to enable it
 
-If none of the five hits, the file is skipped and tagged "no timestamp". **It will not invent a time for you.**
+If all five fail, the file is skipped and marked "No timestamp" — **no invented times**.
 
 <details>
-<summary>Full precedence table and "do I need exiftool?"</summary>
+<summary>Full priority list, and "do I need exiftool?"</summary>
 
-| # | Source | Notes |
+| Order | Source | Notes |
 | :-: | --- | --- |
-| 1 | exiftool (if installed) | Highest-coverage standard extraction |
-| 2 | Container time (MP4/MOV/HEIC) | `com.apple.quicktime.creationdate` → `mvhd` → `mdhd`, UTC to local |
-| 3 | Embedded XMP (JPEG/PNG/WebP) | `xmp:CreateDate`, `photoshop:DateCreated` |
-| 4 | EXIF (JPEG/TIFF/RAW/WebP) | `DateTimeOriginal` → `DateTimeDigitized` → `DateTime`, incl. `OffsetTime*` and `SubSecTime*` |
-| 5 | PNG `tIME` chunk | The lifesaver for phone screenshots |
-| 6 | Google Takeout `.json` sidecar | Accurate capture time from the export |
+| 1 | exiftool (if installed) | Broadest standard metadata extraction |
+| 2 | Container time (MP4/MOV/HEIC) | `com.apple.quicktime.creationdate` → `mvhd` → `mdhd`, UTC converted to local time |
+| 3 | XMP (embedded in JPEG/PNG/WebP) | `xmp:CreateDate`, `photoshop:DateCreated` |
+| 4 | EXIF (JPEG/TIFF/RAW/WebP) | `DateTimeOriginal` → `DateTimeDigitized` → `DateTime`, honours `OffsetTime*` and `SubSecTime*` |
+| 5 | PNG `tIME` chunk | The saviour for phone screenshots |
+| 6 | Google Takeout `.json` sidecar | Accurate capture time from a Google Photos export |
 | 7 | `.xmp` sidecar | Written by editors next to the image |
-| 8 | Filename parsing | 10 patterns, see below |
-| 9 | Filesystem time (opt-in) | Clearly labelled as *not* a capture time |
-| 10 | Nothing | Skipped, tagged "no timestamp" |
+| 8 | Filename parsing | 10 common patterns, see below |
+| 9 | Filesystem time (opt-in fallback) | Explicitly labelled as "landed on disk", not capture time |
+| 10 | Nothing | Skipped, marked "No timestamp" |
 
-**exiftool is entirely optional.** The core formats are parsed in-house, pure standard library:
+**exiftool is entirely optional.** All core formats are parsed in-house, standard library only:
 
-- **JPEG / TIFF / RAW EXIF** — own TIFF IFD walker, covering ARW / NEF / CR2 / DNG / RW2 / ORF / SRW
-- **MP4 / MOV / HEIC / AVIF** — own ISOBMFF box parser, `keys` + `ilst` for QuickTime creation time, falling back to `mvhd` / `mdhd`
-- **HEIC / HEIF** — `meta` → `iinf` / `iloc` to locate the Exif item, plus a TIFF magic-number scan as backup
-- **PNG / WebP** — own chunk parser (`tIME` / `eXIf` / EXIF / XMP)
+- **EXIF in JPEG / TIFF / RAW**: walks the TIFF IFD structure directly; supports ARW / NEF / CR2 / DNG / RW2 / ORF / SRW and friends
+- **MP4 / MOV / HEIC / AVIF**: parses the ISOBMFF box structure, takes QuickTime creation time from `keys` + `ilst`, falls back to `mvhd` / `mdhd`
+- **HEIC / HEIF**: follows `meta` → `iinf` / `iloc` to the Exif item, with a TIFF magic-number scan as backup
+- **PNG / WebP**: parses chunks directly (`tIME` / `eXIf` / EXIF / XMP)
 
 </details>
 
 <details>
-<summary>Filename patterns it recognises</summary>
+<summary>The 10 filename patterns it recognises</summary>
 
 | Pattern | Example |
 | --- | --- |
@@ -250,198 +236,173 @@ If none of the five hits, the file is skipped and tagged "no timestamp". **It wi
 | 14 consecutive digits | `IMG_20200101000000_0001.jpg` |
 | Generic | `20251111_184839.png` / `2025-11-08_16-41-16.mp4` |
 | WhatsApp | `IMG-20240125-WA0001.jpg` |
-| Screenshots | `Screenshot 2024-09-15 at 10.20.30.jpg` |
-| Chinese dates | `2024年5月6日 活动.jpg` |
+| Screenshot | `Screenshot 2024-09-15 at 10.20.30.jpg` |
+| Chinese date | `2024年5月6日 event.jpg` |
 | WeChat / Pixel | `PXL_20240506_153008123.jpg` |
 
-**Purely numeric names aren't mistaken for dates.** `1000000034.jpg` doesn't form a valid date and is
-skipped; so are UUIDs and long hashes, with an extra year-plausibility check on top.
+**Pure numeric IDs are not mistaken for dates.** A name like `1000000034.jpg` that can't form a valid date is recognised and skipped; same for UUIDs and long hashes, with a year-range sanity check as the last line of defence.
 
 </details>
 
 ## FAQ
 
-**Will it damage my photos?**
+**Q: Can it damage my photos?**
 
-No. It only changes filenames. File content is untouched byte for byte, and the metadata inside
-photos is never rewritten. If you get it wrong, one click in the history restores everything.
+No. Only filenames change; content is untouched byte for byte, and the metadata inside is never rewritten. If something goes wrong, one click in the rename history restores everything.
 
-**Does renaming break my phone's photo library?**
+**Q: Will my phone's gallery still recognise the files after renaming?**
 
-This works on files already copied to a computer. It renames files on your disk or external drive;
-your phone's camera roll is not involved.
+This tool works on files already copied to your Mac. Renaming inside the phone's library isn't in scope — it changes files on your Mac or an external drive, and never touches the phone's gallery.
 
-**Why do some files show "no timestamp"?**
+**Q: Why do some files show "No timestamp"?**
 
-Their metadata was stripped — forwarded through WeChat / WhatsApp, re-saved by a screenshot tool,
-exported through an online editor. You can enable the filesystem-time fallback (but that's when the
-file landed on disk, not necessarily when it was shot), or just leave them skipped.
+Their metadata was stripped: forwarded through WeChat / QQ / WhatsApp, re-saved by a screenshot tool, or exported by an online editor. You can enable the filesystem-time fallback (keeping in mind it's when the file landed on disk, not necessarily when it was shot), or just leave them skipped.
 
-**The time is off by a few hours.**
+**Q: Do I need exiftool?**
 
-EXIF timestamps carry no time zone, so the app can't infer where you were. Sources that *do* carry
-one (container creation time, EXIF with `OffsetTime`) are converted automatically and won't drift.
+No. Installing it improves accuracy on some rare cameras' RAW files, but nothing is missing without it — all parsing is done by the app itself.
 
-**Video times are exactly 8 hours early or late.**
+**Q: The times are off by several hours?**
 
-Check the source tag in that column:
+EXIF times carry no timezone, so the app can't guess where you were. Sources that do carry a timezone (video container creation time, EXIF with `OffsetTime`) are converted automatically and won't drift.
 
-- `embedded·mvhd creation time` — the built-in parser reads the UTC seconds from the container and
-  converts to local time. Correct
-- `exiftool·QuickTime:CreateDate` — this goes through exiftool. **Before v1.3.1** there was a time-zone
-  bug: QuickTime stores UTC, exiftool interpreted it as local, so everything was off by one time zone
-  (+08:00 meant 8 hours early). Fixed in v1.3.1; it now matches the built-in parser
+**Q: Video times are exactly 8 hours earlier than the photos?**
 
-Worth noting: the same file differing by 8 hours depending on whether exiftool is installed is exactly
-why this is easy to miss.
+Check the "Source" column first:
 
-**Windows: nothing happens when I double-click, or SmartScreen blocks it.**
+- `Embedded·mvhd creation time` — the built-in parser reads the UTC seconds from the container and converts to local time. Correct.
+- `exiftool·QuickTime:CreateDate` — goes through exiftool. **Before v1.3.1** there was a timezone bug here: QuickTime stores UTC, but exiftool interprets it as local time by default, so everything came out one timezone early (8 hours for +08:00). Fixed in v1.3.1 and now identical to the built-in parser.
 
-Being blocked is normal for an unsigned binary — *More info* → *Run anyway*. If nothing happens at all,
-run from source with `start.bat`, which prints the actual error.
+**Q: Can I use it on Windows or Linux?**
 
-**Windows: HEIC thumbnails don't show.**
+No longer. From 1.8.0 this is a macOS-only app; Windows and Linux support has been removed, and old `.exe` builds are neither updated nor fixed.
 
-HEIC needs an external decoder. macOS has one built in; Windows / Linux need ImageMagick
-(`winget install ImageMagick`) or ffmpeg. Renaming is unaffected — you just see a placeholder icon.
+The equivalent workflow there is to export timestamps with exiftool and rename from that — which is essentially how this tool started, before it became one click.
 
-**Does it support Windows / Linux?**
+**Q: Does it run on both Apple Silicon and Intel?**
 
-Yes. One codebase, same features, and the self-test runs on all three platforms. On Windows the
-folder picker uses the native dialog, so non-ASCII paths are safe.
+Yes. Releases are universal binaries (arm64 + x86_64 in one), so the same dmg works everywhere.
 
 ## Privacy
 
-- ❌ **No network access.** The native macOS build doesn't even open a local port; the Python build binds `127.0.0.1` only
-- ❌ **No uploads** of files, filenames or metadata
-- ❌ **No content modification** — renaming only (plus an optional move when archiving)
-- ✅ Existing files are never overwritten, in either direction
-- ✅ Every self-test runs in a temp directory and never touches your real files
-- ✅ The Windows exe is built by public GitHub Actions; the build is auditable
+- ❌ **No network access.** The app sends nothing and doesn't even open a local port
+- ❌ **No uploads** of files, filenames, or capture data
+- ❌ **No content changes.** Renaming only (plus a move if you enable dated folders)
+- ✅ Collision protection — existing files are never overwritten
+- ✅ Every test runs inside the system temp directory, never against your real files
+- ✅ The build is public; every GitHub Actions step is inspectable
 
 ## For developers
 
 <details>
-<summary>Run from source</summary>
+<summary>Running from source</summary>
 
-**Windows** (Python 3.8+; tick `Add python.exe to PATH` during install):
-
-```bat
-git clone https://github.com/js-ping/shuttersort.git
-cd shuttersort
-start.bat
-```
-
-**macOS / Linux** (Python 3.8+, built in on macOS):
+Requires macOS 14+ and the command line tools (`xcode-select --install` — full Xcode is not needed).
 
 ```bash
 git clone https://github.com/js-ping/shuttersort.git
-cd shuttersort
-./start.command
+cd shuttersort/native
+./build.sh                 # produces dist/ShutterSort.app
+open dist/ShutterSort.app
 ```
 
-No `pip install`, no venv, no config file — pure standard library.
+No `pip install`, no virtualenv, no config files. The whole app is compiled by the system's
+own `swiftc`, with zero third-party dependencies.
 
 </details>
 
 <details>
-<summary>Build it yourself</summary>
-
-**Windows:** double-click `build_exe.bat`. It installs PyInstaller, generates the icon and produces
-`dist\ShutterSort.exe`.
-
-**macOS native app** (needs only `swiftc` — `xcode-select --install`, **Xcode is not required**):
+<summary>Packaging it yourself</summary>
 
 ```bash
 cd native
 ./build.sh --universal --zip --dmg
 ```
 
-You get `native/dist/ShutterSort.app` plus a shareable `ShutterSort-<version>-macOS-universal.dmg`
-and `.zip`.
+You get three things in `native/dist/`: a double-clickable `ShutterSort.app`, plus
+`ShutterSort-<version>-macOS-universal.dmg` and the same as `.zip` to hand out.
 
-**CI:** push a `v*` tag and GitHub Actions builds the exe and the `.app` on real Windows and macOS
-runners and attaches them to the release. The Actions page also has a manual "Run workflow" that
-builds without releasing.
+**CI packaging**: push a `v*` tag and GitHub Actions builds on a real macOS runner and attaches
+the result to the Release. You can also hit "Run workflow" to build without publishing.
 
-</details>
-
-<details>
-<summary>Tests</summary>
-
-```bash
-python3 tests/selftest.py           # 72 regression checks
-python3 native/tests/run_parity.py  # native vs Python, 14 scenarios, field by field
-```
-
-The native build is a rewrite, and the dangerous failure isn't an ugly window — it's reading the
-wrong time. So `run_parity.py` builds a corpus covering 9 formats (HEIC, WebP, big-endian TIFF,
-EXIF with time-zone offsets, same-second collisions in subfolders), compares timestamps,
-sub-seconds, source labels, target names and conflict markers field by field, and exits non-zero
-on any difference. It then really renames six files, re-scans to prove idempotency, exports the CSV
-and undoes the batch — so the two riskiest paths are gated as well.
-
-Rename-rule boundaries get their own gate, because an off-by-one here is invisible to the eye:
-
-```bash
-swiftc -O native/Sources/Core/*.swift native/Sources/CLI/main.swift -o /tmp/ss-cli
-/tmp/ss-cli edit-test        # 38 checks: five rule types + zero/negative/overflow/anchor/stacking/disabled/CJK/extension
-```
-
-The UI can be inspected without looking at a screen:
-
-```bash
-native/tests/snapshots.sh            # light
-native/tests/snapshots.sh --dark     # dark
-```
-
-It renders the sidebar, table cells, the detail pane and all sheets to PNGs
-(`$TMPDIR/shuttersort-snapshots/out`) — handy for checking column widths, clipped text and contrast.
-
-The 72 checks cover the parsers (9 formats → expected time), filename rules, the naming engine, the
-full HTTP flow (scan → preview → rename → idempotent re-scan → undo), selective renaming (only the
-selected rows, paths outside the scan rejected), file-list scanning (dedup, common parent, invalid
-paths) and API security (path traversal). Everything runs in a temp directory and cleans up after itself.
+The single source of truth for the version is the `VERSION` file at the repo root — edit that
+one place and `build.sh` writes it into Info.plist.
 
 </details>
 
 <details>
-<summary>Optional extras (all optional)</summary>
+<summary>Running the tests</summary>
+
+**Field-by-field comparison** is the most important gate before a release. The whole parsing
+chain was rewritten in Swift, and the real risk is "looks great, reads the time wrong". So
+`run_parity.py` builds a corpus covering every format (HEIC, WebP, big-endian TIFF, EXIF with
+timezone offsets, same-second collisions in subfolders) and compares time, sub-seconds, source,
+new filename, and collision flags across every field. A single mismatch exits non-zero.
+It then renames 6 samples for real, rescans to verify idempotency, exports CSV, and undoes it all.
+
+```bash
+cd native
+python3 tests/run_parity.py      # 14 scenarios, 3878 assertions
+```
+
+The reference implementation lives in `native/tests/reference/` (the Python version that shipped
+for two years). It exists only for tests — it is not a runnable product. Keeping it means every
+step of the Swift port has a trustworthy benchmark.
+
+Rename rules get their own gate, because "off by one character" bugs are invisible to the eye:
+
+```bash
+swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o /tmp/ss-cli
+/tmp/ss-cli edit-test        # 38 assertions: all five rule types + 0/negative/overshoot/anchor/stacking/disabled/CJK/extension
+```
+
+The UI can also be verified offline, without staring at the screen:
+
+```bash
+tests/snapshots.sh            # light
+tests/snapshots.sh --dark     # dark
+```
+
+It renders the sidebar, table cells, detail pane, and several sheets offscreen to PNG
+(`$TMPDIR/shuttersort-snapshots/out`) so you can check column widths, clipped text, and
+legibility in both appearances.
+
+</details>
+
+<details>
+<summary>Optional extras (all of them truly optional)</summary>
 
 | Tool | Purpose | Without it |
 | --- | --- | --- |
-| `exiftool` | Highest-coverage metadata extraction | Falls back to built-in parsers, fully functional |
-| `ffmpeg` | Video thumbnails (and a HEIC fallback) | Shows a 🎬 icon; renaming unaffected |
-| `magick` (ImageMagick) | HEIC thumbnails on Windows / Linux | Placeholder icon; renaming unaffected |
+| `exiftool` | Highest-priority metadata extraction, broadest coverage | Falls back to the built-in parser, fully functional |
+| `ffmpeg` | Video thumbnail previews | Shows a 🎬 icon; renaming unaffected |
 
 ```bash
-brew install exiftool ffmpeg                                    # macOS
-winget install exiftool ffmpeg                                  # Windows
-sudo apt install libimage-exiftool-perl ffmpeg imagemagick      # Debian / Ubuntu
+brew install exiftool ffmpeg
 ```
 
-**The native macOS build needs none of them.** Thumbnails go through system ImageIO
-(HEIC / HEIF / RAW / TIFF) and AVFoundation (a frame at 0.5 s for videos).
+Thumbnails come from the system's ImageIO (HEIC / HEIF / RAW / TIFF all supported) and
+AVFoundation (grabs frame 0.5 s of a video). These two only widen coverage and accuracy.
 
 </details>
 
 <details>
-<summary>How it compares to a generic batch renamer</summary>
+<summary>How it compares to generic batch renamers</summary>
 
-| Capability | Generic batch renamer | ShutterSort |
+| Capability | Generic batch renamer | This |
 | --- | :---: | :---: |
-| Reads capture time from photos (EXIF / XMP / PNG / HEIC / RAW) | Partial | ✅ |
-| Reads capture time from video containers (MP4 / MOV) | Usually not | ✅ |
-| Recovers time from filenames of messaging-app exports | Rarely | ✅ |
-| Reads Google Takeout `.json` sidecars | No | ✅ |
-| **Tells you where each timestamp came from** | No | ✅ Tagged per file |
-| **Renames only the rows you pick** | Rarely | ✅ |
-| Undo | Usually session-only | ✅ Persisted, survives restart |
-| Re-running is stable | Often breaks | ✅ |
-| **Sub-second ordering for bursts** | Directory order | ✅ Follows the shutter |
-| **Time correction** | Rare | ✅ ±days/hours/minutes, or derived from a reference file |
-| Dependencies | A pile of packages | ✅ Zero third-party deps |
-| Platforms | Usually one | ✅ Windows / macOS / Linux, native on macOS |
+| Read capture time (EXIF / XMP / PNG / HEIC / RAW) | Partial | ✅ |
+| Read video capture time (MP4 / MOV container) | Usually not | ✅ |
+| Read chat-app exports (parse the filename) | Rarely | ✅ |
+| Read Google Takeout exports (`.json` sidecar) | No | ✅ |
+| **Tell you where the time came from** | No | ✅ per-file source tags, verifiable |
+| **Rename only the files you picked** | Rarely | ✅ |
+| Undo | Usually current session only | ✅ persisted, works after reboot |
+| Stable on repeated runs | Often breaks | ✅ |
+| **Same-second bursts ordered by sub-second** | Read order | ✅ numbering follows the shutter |
+| **Time correction** (wrong clock / timezone) | Rarely | ✅ ±days/hours/minutes, derivable from a reference file |
+| Insert / delete / replace anywhere in the name | Requires regex | ✅ five rule types + clickable character ruler |
+| Dependencies | A pile of packages | ✅ zero |
 
 </details>
 
@@ -449,38 +410,31 @@ sudo apt install libimage-exiftool-perl ffmpeg imagemagick      # Debian / Ubunt
 
 ```
 ShutterSort/
-├── native/                    ← macOS native app (SwiftUI, since v1.5.0)
+├── VERSION                    ← single source of truth for the version
+├── native/                    ← all source code, one native macOS app
 │   ├── build.sh               ← one command → .app + zip + dmg
-│   ├── Sources/Core/          ← parsing engine, rewritten in Swift (TIFF/EXIF/ISOBMFF)
-│   ├── Sources/UI/            ← SwiftUI interface
-│   ├── Sources/CLI/           ← CLI entry used by the parity and rule tests
-│   └── tests/                 ← run_parity.py, snapshots.sh
-├── start.command / start.bat  ← double-click launcher (macOS·Linux / Windows, Python build)
-├── build_exe.bat              ← double-click: build the Windows standalone exe
-├── src/
-│   ├── media_time.py          ← timestamp parsing engine (Python build: Windows / Linux)
-│   ├── server.py              ← local server + all endpoints
-│   ├── app_main.py            ← window entry point (Windows .exe)
-│   └── static/index.html      ← UI (single file, no build step)
-├── tests/selftest.py          ← 72 regression checks
-├── packaging/                 ← Windows packaging + icons
-│   ├── version_info.txt       ← version resource embedded in the exe
-│   └── ci/RELEASE_NOTES.md    ← release body (edit this one before a release)
-├── .github/workflows/         ← tag a release → exe + .app built and attached
+│   ├── Resources/             ← Info.plist, app icon, icon generator
+│   ├── Sources/Core/          ← timestamp engine (TIFF/EXIF/ISOBMFF parsed in-house)
+│   ├── Sources/UI/            ← SwiftUI interface (three panes, table, sheets, help)
+│   ├── Sources/CLI/           ← CLI entry point used by the comparison tests
+│   └── tests/                 ← field-by-field comparison, snapshots, reference/
+├── .github/
+│   ├── workflows/             ← tag → build and attach to Release
+│   └── RELEASE_NOTES.md       ← Release body (edit this one before shipping)
 ├── screenshots/               ← README images
-└── rename-history/            ← created at runtime: undo records (don't delete)
+└── rename-history/            ← created at runtime: undo records (do not delete)
 ```
 
 ## Performance
 
-| Workload | Time |
+| Scale | Result |
 | --- | --- |
-| 100 photos | < 1 s |
-| 10 000 files | 20–60 s (disk-bound) |
-| One 4 GB 4K video | Milliseconds — only the header boxes are read |
+| 100 photos | under a second |
+| 10,000 files | 20–60 s (disk-bound) |
+| A single 4 GB 4K video | reads only the container header (a few hundred bytes) — milliseconds |
 
-Parallel scanning scales with CPU cores; videos are read header-only, never loaded whole.
-The table renders at most 1500 rows to stay responsive; renaming still applies to every file.
+Scanning parallelism follows the CPU core count automatically; videos are read header-only and never loaded whole into memory.
+The table renders at most 1500 rows to stay responsive, while renaming still applies to every file.
 
 ## License
 

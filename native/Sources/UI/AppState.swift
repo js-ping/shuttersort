@@ -254,6 +254,15 @@ final class AppState: ObservableObject {
         startScan()
     }
 
+    /// 直接打开指定文件夹，跳过选择面板。
+    /// 命令行 `--open <目录>` 用它（也方便脚本截界面图）。
+    func openFolder(at url: URL) {
+        folder = url
+        scope = .folder
+        pickedFiles = []
+        startScan()
+    }
+
     func chooseFiles() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true

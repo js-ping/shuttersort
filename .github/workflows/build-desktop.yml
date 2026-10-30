@@ -1,5 +1,8 @@
-# 推 v* 标签 → 在真实的 Windows 和 macOS 机器上各打一份，统一挂到对应 Release；
+# 推 v* 标签 → 在真实 macOS 机器上打一份，挂到对应 Release；
 # 也可以到 Actions 页面手动点 "Run workflow" 只打包不发布（产物在 Artifacts 里）。
+#
+# 从 v1.8.0 起本项目只做 macOS 原生版，Windows / Linux 已移除。
+# 只剩一个 job，不需要再协调多平台产物，发布这一步直接并入 macos job。
 #
 # 两个踩过的坑，改这个文件前先看一眼：
 #
@@ -10,7 +13,7 @@
 #    GitHub 不把它算作 push 事件（仓库的 pushed_at 也不会变），结果就是改了没反应。
 #    必须走真正的 git push，或者用 Contents API / 网页编辑。
 
-name: 打包桌面版
+name: 打包 macOS 版
 
 on:
   push:
@@ -21,68 +24,13 @@ on:
 permissions:
   contents: write        # 挂 Release 资产需要写权限
 
-# 让 Python 全程用 UTF-8，避免中文日志在英文版 runner 上炸掉（脚本里也各自兜底了）
+# 让测试脚本里的中文日志在英文版 runner 上也不炸
 env:
   PYTHONUTF8: "1"
   PYTHONIOENCODING: "utf-8"
 
 jobs:
 
-  # ---------------------------------------------------------------- Windows
-  windows:
-    name: 构建 ShutterSort.exe
-    runs-on: windows-latest
-
-    steps:
-      - name: 拉取代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: 安装打包依赖
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller pywebview pythonnet
-
-      - name: 跑自检（72 项）
-        run: python tests/selftest.py
-
-      - name: 生成 Windows 图标
-        run: python packaging/make_ico.py
-
-      - name: 打包成单文件 exe
-        run: >
-          python -m PyInstaller --noconfirm --clean
-          --windowed --onefile
-          --name ShutterSort
-          --icon packaging/icons/app.ico
-          --version-file packaging/version_info.txt
-          --add-data "src/static;static"
-          --collect-all webview
-          --collect-all pythonnet
-          --collect-all clr_loader
-          --hidden-import clr
-          src/app_main.py
-
-      - name: 确认产物存在
-        run: |
-          Get-Item dist/ShutterSort.exe | Format-List Name, Length
-          if (-not (Test-Path dist/ShutterSort.exe)) { exit 1 }
-
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShutterSort-windows
-          path: dist/ShutterSort.exe
-          if-no-files-found: error
-
-  # ----------------------------------------------------------------- macOS
-  # 从 v1.5.0 起，macOS 版不再是「Python + 内嵌浏览器」，而是原生 SwiftUI。
-  # 所以这个 job 不再装 PyInstaller / pywebview，改用系统自带的 swiftc 直接编。
-  # Python 只留下一个用途：跑 tests/selftest.py 和逐字段对照测试。
   macos:
     name: 构建 ShutterSort.app（原生 SwiftUI）
     runs-on: macos-14          # Apple 芯片；这里交叉编出 arm64 + x86_64 通用二进制
@@ -96,20 +44,18 @@ jobs:
           swift --version
           xcodebuild -version || true
           python3 --version
+          echo "版本号：$(cat VERSION)"
 
-      - name: 跑 Python 版自检（72 项，确认参照实现本身是好的）
-        run: python3 tests/selftest.py
-
-      - name: 逐字段对照（原生版 vs Python 版，14 个场景）
+      - name: 逐字段对照（14 个场景）
         working-directory: native
-        # 这是发布前最重要的一道闸：解析器是重写的，只有逐字段零差异才敢发。
+        # 这是发布前最重要的一道闸：解析器是 Swift 重写的，只有和参考实现逐字段零差异才敢发。
         # 任何一处不一致都会让这个 job 失败，后面打包和发布都不会跑。
         run: python3 tests/run_parity.py
 
-      - name: 位置增删自检（19 项边界）
+      - name: 改名规则自检（38 项边界）
         working-directory: native
         # 「按位置增删」最怕数错一位 —— 界面里看着像对的，改完一百张才发现每张少两个字。
-        # 这里把 0 / 负数 / 超长 / 叠加 / 停用 / 中文 / 扩展名保护全钉成断言。
+        # 这里把 0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 / 中文 / 扩展名保护全钉成断言。
         run: |
           set -eux
           swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o "$RUNNER_TEMP/ss-cli"
@@ -139,34 +85,13 @@ jobs:
             native/dist/*.zip
           if-no-files-found: error
 
-  # --------------------------------------------------------------- 发布
-  # 单独的 job，等两个平台都打好了再一次性挂上去。
-  # 否则两个 job 同时去建同一个 Release 会互相打架。
-  release:
-    name: 挂到 Release
-    needs: [windows, macos]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: 拉取代码（发布说明要用）
-        uses: actions/checkout@v4
-
-      - name: 取回两个平台的产物
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: 看一眼拿到的文件
-        run: find artifacts -type f -exec ls -lh {} \;
-
-      - name: 发布
+      - name: 挂到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/ShutterSort-windows/ShutterSort.exe
-            artifacts/ShutterSort-macos/*.dmg
-            artifacts/ShutterSort-macos/*.zip
-          # 发布说明单独放在 packaging/ci/RELEASE_NOTES.md，一次只维护一份。
+            native/dist/*.dmg
+            native/dist/*.zip
+          # 发布说明单独放在 .github/RELEASE_NOTES.md，一次只维护一份。
           # 发新版本前记得先把它改成当版的内容。
-          body_path: packaging/ci/RELEASE_NOTES.md
+          body_path: .github/RELEASE_NOTES.md

@@ -4,6 +4,18 @@ import SwiftUI
 struct ShutterSortApp: App {
     @StateObject private var state = AppState()
 
+    /// `--open <目录>`：启动后直接扫描这个文件夹，跳过选择面板。
+    /// 主要给截图脚本和「从终端打开某个目录」用，平时双击启动不涉及。
+    private let launchFolder: URL? = {
+        let argv = CommandLine.arguments
+        guard let i = argv.firstIndex(of: "--open"), i + 1 < argv.count else { return nil }
+        let path = argv[i + 1]
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir),
+              isDir.boolValue else { return nil }
+        return URL(fileURLWithPath: path)
+    }()
+
     init() {
         // `--version` 只打印版本号就退出，留给打包脚本和 CI 做冒烟测试用。
         // 不加这个的话，命令行里带参数跑会直接开个窗口挂住。
@@ -27,6 +39,11 @@ struct ShutterSortApp: App {
             ContentView()
                 .environmentObject(state)
                 .frame(minWidth: 1040, minHeight: 620)
+                .task {
+                    if let f = launchFolder, !state.scanning, state.rows.isEmpty {
+                        state.openFolder(at: f)
+                    }
+                }
         }
         .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
