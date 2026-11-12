@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct ShutterSortApp: App {
     @StateObject private var state = AppState()
+    @AppStorage("shuttersort.onboarded.v1") private var onboarded = false
+    @State private var showGuide = false
 
     /// `--open <目录>`：启动后直接扫描这个文件夹，跳过选择面板。
     /// 主要给截图脚本和「从终端打开某个目录」用，平时双击启动不涉及。
@@ -44,6 +46,16 @@ struct ShutterSortApp: App {
                         state.openFolder(at: f)
                     }
                 }
+                .onAppear {
+                    // 第一次打开给三步引导；之后不再打扰（可从「帮助 → 使用引导」再打开）
+                    if !onboarded { showGuide = true }
+                }
+                .sheet(isPresented: $showGuide) {
+                    OnboardingView { dontShow in
+                        if dontShow { onboarded = true }
+                        showGuide = false
+                    }
+                }
         }
         .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
@@ -68,6 +80,7 @@ struct ShutterSortApp: App {
             CommandGroup(replacing: .help) {
                 Button("使用说明书") { state.showHelp = true }
                     .keyboardShortcut("/", modifiers: .command)
+                Button("使用引导") { showGuide = true }
             }
         }
     }
