@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct ShutterSortApp: App {
     @StateObject private var state = AppState()
+    @AppStorage("shuttersort.onboarded.v1") private var onboarded = false
+    @State private var showGuide = false
 
     init() {
         // `--version` 只打印版本号就退出，留给打包脚本和 CI 做冒烟测试用。
@@ -27,6 +29,16 @@ struct ShutterSortApp: App {
             ContentView()
                 .environmentObject(state)
                 .frame(minWidth: 1040, minHeight: 620)
+                .onAppear {
+                    // 第一次打开给三步引导；之后不再打扰（可从「帮助 → 使用引导」再打开）
+                    if !onboarded { showGuide = true }
+                }
+                .sheet(isPresented: $showGuide) {
+                    OnboardingView { dontShow in
+                        if dontShow { onboarded = true }
+                        showGuide = false
+                    }
+                }
         }
         .defaultSize(width: 1360, height: 860)
         .windowResizability(.contentMinSize)
@@ -51,6 +63,7 @@ struct ShutterSortApp: App {
             CommandGroup(replacing: .help) {
                 Button("使用说明书") { state.showHelp = true }
                     .keyboardShortcut("/", modifiers: .command)
+                Button("使用引导") { showGuide = true }
             }
         }
     }
