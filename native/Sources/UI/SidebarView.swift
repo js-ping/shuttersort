@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SidebarView: View {
@@ -86,6 +87,8 @@ struct SidebarView: View {
     private var namingCard: some View {
         Card(index: 2, title: "命名规则") {
             VStack(alignment: .leading, spacing: 8) {
+                presetRow
+
                 Picker("", selection: $state.format) {
                     ForEach(RenameOptions.formatPresets, id: \.self) { f in
                         Text("\(f)  →  \(PyFormat.strftime(f, PyFormat.now))").tag(f)
@@ -137,6 +140,72 @@ struct SidebarView: View {
                 }
             }
         }
+    }
+
+    /// 预设：把「格式 + 前后缀 + 归档 + 规则链」整套存下来，换场景一键切回。
+    /// 放在命名卡片最上面 —— 它管的正是下面这一整块。
+    private var presetRow: some View {
+        HStack(spacing: 6) {
+            Menu {
+                Button("保存当前设置为预设…") { promptSavePreset() }
+
+                if !state.presets.isEmpty {
+                    Divider()
+                    ForEach(state.presets) { p in
+                        Button {
+                            state.applyPreset(p)
+                        } label: {
+                            Text("\(p.name)　\(p.summary)")
+                        }
+                    }
+                    Divider()
+                    Menu("删除预设") {
+                        ForEach(state.presets) { p in
+                            Button(p.name, role: .destructive) { state.deletePreset(p.id) }
+                        }
+                    }
+                }
+            } label: {
+                Label("预设", systemImage: "bookmark")
+                    .font(.system(size: 11))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            if state.presets.isEmpty {
+                Text("调好一套存下来，下次一键切回")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func promptSavePreset() {
+        let alert = NSAlert()
+        alert.messageText = "保存为预设"
+        alert.informativeText = "把当前的日期格式、前后缀、归档开关和下面整条规则链一起存下来。同名会覆盖。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = "起个名字，比如「相机原片」「微信导出」"
+        field.stringValue = suggestedPresetName()
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        state.savePreset(named: field.stringValue)
+    }
+
+    /// 拿当前的组合猜个名字，省得每次现想
+    private func suggestedPresetName() -> String {
+        if !state.rules.isEmpty {
+            let kinds = state.rules.filter(\.enabled).map { $0.kind.rawValue }
+            if !kinds.isEmpty { return kinds.joined(separator: "+") }
+        }
+        return state.pattern.rawValue
     }
 
     private func labeledField(_ label: String, text: Binding<String>, width: CGFloat) -> some View {
@@ -360,6 +429,26 @@ struct SidebarView: View {
                 Spacer(minLength: 0)
             }
 
+        case .cleanUp:
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 12) {
+                    Toggle("括号内容", isOn: rule.cleanBrackets)
+                        .help("连括号一起删掉：(1)、[副本]、（修改）、{final}")
+                    Toggle("多余空格", isOn: rule.cleanSpaces)
+                        .help("连续空格压成一个，首尾空格去掉，各种 Unicode 空白统一成半角")
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 12) {
+                    Toggle("下划线/点换空格", isOn: rule.cleanSeparators)
+                        .help("把 _ 和 . 换成空格；想连空格一起收拾，就在后面再接一条「清理垃圾」只勾「多余空格」")
+                    Toggle("emoji", isOn: rule.cleanEmoji)
+                        .help("去掉文件名里的表情符号")
+                    Spacer(minLength: 0)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .font(.system(size: 10.5))
+
         case .changeCase:
             HStack(spacing: 5) {
                 Picker("", selection: rule.caseStyle) {
@@ -484,7 +573,7 @@ struct SidebarView: View {
                 }
                 .labelsHidden()
                 .controlSize(.small)
-                .onChange(of: state.fallback) { _, _ in state.rebuildPlan(immediate: true) }
+                .onChange(of: state.fallback) { _, _ in state.applyFallbackChange() }
 
                 // 版本号并进标签里，省一行 —— 右下角那条状态栏本来也一直显示着它
                 Toggle("用 exiftool 增强（\(state.exifToolAvailable ? state.exifToolVersion : "未安装")）",

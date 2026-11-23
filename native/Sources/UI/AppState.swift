@@ -35,6 +35,9 @@ final class AppState: ObservableObject {
     /// 改名规则链，空 = 不启用
     @Published var rules: [NameRule] = []
 
+    /// 存下来的命名方案（`~/Library/Application Support/ShutterSort/presets.json`）
+    @Published var presets: [NamingPreset] = []
+
     // MARK: - 读取
 
     @Published var useExifTool = true
@@ -99,6 +102,7 @@ final class AppState: ObservableObject {
     init() {
         exifToolInfo = exifTool.infoText
         if !exifTool.available { useExifTool = false }
+        presets = PresetsStore.load()
         prepareFromLaunchArguments()
     }
 
@@ -248,14 +252,11 @@ final class AppState: ObservableObject {
         panel.prompt = "选择"
         panel.message = "选择一个放照片 / 视频的文件夹"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        folder = url
-        scope = .folder
-        pickedFiles = []
-        startScan()
+        openFolder(at: url)
     }
 
-    /// 直接打开指定文件夹，跳过选择面板。
-    /// 命令行 `--open <目录>` 用它（也方便脚本截界面图）。
+    /// 指定一个文件夹直接开扫。选择面板、启动参数、以及拖进整个目录都走这里，
+    /// 免得「设范围和起扫描」这两步在三个地方各写一遍、有一处漏了就不刷新。
     func openFolder(at url: URL) {
         folder = url
         scope = .folder
@@ -398,14 +399,18 @@ final class AppState: ObservableObject {
         }
         group.wait()
 
-        collected.sort(by: { (a: MediaRow, b: MediaRow) -> Bool in
-            let ka = a.sortKey, kb = b.sortKey
-            if ka.0 != kb.0 { return ka.0 < kb.0 }
-            if ka.1 != kb.1 { return ka.1 < kb.1 }
-            if ka.2 != kb.2 { return ka.2 < kb.2 }
-            return ka.3 < kb.3
-        })
+        collected.sort(by: AppState.rowOrder)
         return collected
+    }
+
+    /// 统一的排序规则：时间在前、没有时间的沉底；同秒靠 mtime 与文件名兜底。
+    /// 扫描完和切换兜底来源后都走它，两处不能有第二种排法。
+    nonisolated static func rowOrder(_ a: MediaRow, _ b: MediaRow) -> Bool {
+        let ka = a.sortKey, kb = b.sortKey
+        if ka.0 != kb.0 { return ka.0 < kb.0 }
+        if ka.1 != kb.1 { return ka.1 < kb.1 }
+        if ka.2 != kb.2 { return ka.2 < kb.2 }
+        return ka.3 < kb.3
     }
 
     // MARK: - 重算计划
@@ -436,6 +441,118 @@ final class AppState: ObservableObject {
     /// 选项改变时统一走这里（含防抖）
     func optionsChanged() { rebuildPlan() }
 
+    // MARK: - 时间戳来源兜底
+
+    /// 切换「用文件创建时间 / 修改时间」时的实时补算。
+    ///
+    /// 兜底只影响「本来就没时间」的行 —— 有 EXIF、有文件名日期的那些跟它无关。
+    /// 所以不需要重扫整个目录（一万个文件要几十秒），只给那几行补一次 `stat`，
+    /// 毫秒级就能让右侧列表跟着变。
+    ///
+    /// 注意要先把上一次兜底的结果剥掉：`.modified` 切到 `.created` 时，
+    /// 不剥就会把旧的修改时间当成创建时间留着。
+    func applyFallbackChange() {
+        var list = rows
+        var touched = false
+        // 切换前「没时间」的那些行：切到兜底后它们会变成可改名，
+        // 默认勾选状态得跟着放开，否则用户看到的还是「改了 0 个」。
+        let wasTimeless = Set(rows.filter { $0.time == nil }.map { $0.path })
+
+        for i in list.indices {
+            if list[i].source.hasPrefix("文件系统·") {
+                list[i].time = nil
+                list[i].source = "缺失"
+                list[i].note = FilenameDates.missingHint(list[i].name)
+                touched = true
+            }
+            guard fallback != .skip, list[i].time == nil else { continue }
+
+            let url = URL(fileURLWithPath: list[i].path)
+            switch fallback {
+            case .created:
+                guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                      let d = attrs[.creationDate] as? Date else { continue }
+                list[i].time = WallTime(date: d, timeZone: .current)
+                list[i].source = "文件系统·创建时间"
+                list[i].note = ""
+                touched = true
+            case .modified:
+                let info = Scanner.statInfo(url)
+                list[i].time = WallTime(unix: info.sec, micro: info.micro, timeZone: .current)
+                list[i].source = "文件系统·修改时间"
+                list[i].note = ""
+                touched = true
+            case .skip:
+                break
+            }
+        }
+
+        if touched {
+            list.sort(by: AppState.rowOrder)
+            rows = list
+        }
+        rebuildPlan(immediate: true)
+
+        // 刚从「无时间戳」变成可改名的行，自动勾上
+        if fallback != .skip, !wasTimeless.isEmpty {
+            let revived = plan.filter { $0.status == .ok && wasTimeless.contains($0.path) }
+            if !revived.isEmpty {
+                selection.formUnion(revived.map { $0.path })
+            }
+        }
+    }
+
+    // MARK: - 命名预设
+
+    /// 把当前的命名格式、前后缀、归档开关、规则链一起存下来。
+    /// 同名覆盖 —— 调好一套想再改，不该留下两个几乎一样的条目。
+    func savePreset(named raw: String) {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+
+        var p = NamingPreset(name: name)
+        p.format = format
+        p.useCustomFormat = useCustomFormat
+        p.customFormat = customFormat
+        p.prefix = prefix
+        p.suffix = suffix
+        p.pattern = pattern
+        p.archive = archive
+        p.archiveFormat = archiveFormat
+        p.rules = rules
+
+        if let i = presets.firstIndex(where: { $0.name == name }) {
+            p.id = presets[i].id        // 保住 id，SwiftUI 的列表不会整块重建
+            presets[i] = p
+        } else {
+            presets.append(p)
+        }
+        PresetsStore.save(presets)
+        showToast("已保存预设「\(name)」")
+    }
+
+    func applyPreset(_ p: NamingPreset) {
+        format = p.format
+        useCustomFormat = p.useCustomFormat
+        customFormat = p.customFormat
+        prefix = p.prefix
+        suffix = p.suffix
+        pattern = p.pattern
+        archive = p.archive
+        archiveFormat = p.archiveFormat
+        rules = p.rules
+        rebuildPlan(immediate: true)
+        showToast("已套用预设「\(p.name)」")
+    }
+
+    func deletePreset(_ id: UUID) {
+        guard let i = presets.firstIndex(where: { $0.id == id }) else { return }
+        let name = presets[i].name
+        presets.remove(at: i)
+        PresetsStore.save(presets)
+        showToast("已删除预设「\(name)」")
+    }
+
     // MARK: - 改名规则
 
     func addRule(_ kind: NameRule.Kind) {
@@ -454,6 +571,12 @@ final class AppState: ObservableObject {
             r.replacement = ""
         case .strip:
             r.charset = .space
+        case .cleanUp:
+            // 最常遇到的就是导出工具塞的 `(1)`、`(2)` 和多余空格
+            r.cleanBrackets = true
+            r.cleanSpaces = true
+            r.cleanSeparators = false
+            r.cleanEmoji = false
         case .changeCase:
             r.caseStyle = .lower
         }

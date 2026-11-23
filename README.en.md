@@ -143,11 +143,19 @@ The date format is editable — e.g. `2024-05-06`. It can also **file photos int
 
 **If two files resolve to the same name**, `_1`, `_2` is appended automatically. An existing file is never overwritten.
 
+### Save a setup as a preset
+
+Phone shots, camera originals, chat-app exports — each usually wants its own naming scheme. Re-typing the prefix and rules every time gets old, so the **Preset** menu at the top of the naming card stores the whole thing: date format, prefix/suffix, folder archiving, and the entire rule chain. Give it a name, and switch back to it in one click.
+
+Saving under an existing name overwrites it — you won't accumulate a pile of near-identical entries. Presets live in `~/Library/Application Support/ShutterSort/presets.json` and survive restarts.
+
+Only naming-related settings go in: which folder you're scanning, the time correction offset, and which rows are ticked change every batch and would only get in the way.
+
 ### Got a chunk of the name you don't want? Use rename rules
 
 Prefix and suffix only reach the two ends, but the annoying part is usually in the middle: the camera's `IMG_`, an editor's `_edited`, redundant seconds, a long ID an import tool bolted on.
 
-These run in order on the finished name. Five rule types:
+These run in order on the finished name. Six rule types:
 
 | Rule | What it does | Example |
 | --- | --- | --- |
@@ -155,6 +163,7 @@ These run in order on the finished name. Five rule types:
 | Delete | Delete N characters from position N, or everything to the end | `IMG_20240506_153008` → `20240506_153008` |
 | Replace | Swap one piece for another; leave the replacement empty to remove | `IMG_` → `photo_` |
 | Strip characters | Remove every space / underscore / bracket / digit at once | Remove all underscores |
+| Clean up | Drop `(1)`, `[copy]`, stray spaces, emoji | `photo(1)` → `photo` |
 | Change case | lower / UPPER / Title Case / Sentence case | `DSC` → `dsc` |
 
 - Rules run top to bottom; each one's output feeds the next. Every rule can be disabled or reordered
@@ -353,8 +362,33 @@ Rename rules get their own gate, because "off by one character" bugs are invisib
 
 ```bash
 swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o /tmp/ss-cli
-/tmp/ss-cli edit-test        # 38 assertions: all five rule types + 0/negative/overshoot/anchor/stacking/disabled/CJK/extension
+/tmp/ss-cli edit-test        # 53 assertions: all six rule types + 0/negative/overshoot/anchor/stacking/disabled/CJK/nested brackets
 ```
+
+UI behaviour gets its own gate. Switching "timestamp source" used to do nothing visible — the
+option looked broken, when really you had to rescan. That path is now pinned down by 9 assertions:
+
+```bash
+swiftc -O Sources/Core/*.swift Sources/UI/AppState.swift tests/fallback-test.swift \
+    -o /tmp/ss-fb -framework SwiftUI -framework AppKit
+/tmp/ss-fb "$TMPDIR/shuttersort-corpus"
+```
+
+It walks skip → modified → created → skip and checks four things: the fallback only fills rows
+that had no time, switching drops the previous fallback value, switching back restores everything,
+and rows with a real capture time are never touched.
+
+Presets are the one thing the user builds up and cannot reconstruct — rename history can be undone,
+presets can only be retyped. So they get their own gate:
+
+```bash
+swiftc -O Sources/Core/*.swift tests/preset-test.swift -o /tmp/ss-preset
+/tmp/ss-preset /tmp/ss-preset-dir      # 14 assertions: round-trip, legacy format, corrupt file
+```
+
+The legacy-format case is deliberate: presets live on disk, so adding one switch to a rule later
+would make the synthesised decoder throw on older files and lose every preset at once. The models
+therefore decode leniently — a missing key falls back to its default instead of killing the file.
 
 The UI can also be verified offline, without staring at the screen:
 

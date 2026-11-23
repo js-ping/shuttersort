@@ -70,7 +70,7 @@ struct MediaRow: Identifiable, Hashable {
 
 // MARK: - 命名选项
 
-enum NamePattern: String, CaseIterable, Identifiable {
+enum NamePattern: String, CaseIterable, Identifiable, Codable {
     case dateOnly = "仅日期"
     case dateOriginal = "日期_原名"
     case originalDate = "原名_日期"
@@ -88,12 +88,13 @@ enum NamePattern: String, CaseIterable, Identifiable {
 /// 刻意没做序号 / 正则 / 脚本那几样：
 ///  · 序号会破坏幂等 —— 只选部分文件时编号就漂了，而「重复扫描结果不变」是本工具的核心承诺
 ///  · 正则和脚本门槛太高，跟「傻瓜式」定位冲突
-struct NameRule: Identifiable, Equatable {
-    enum Kind: String, CaseIterable, Identifiable {
+struct NameRule: Identifiable, Equatable, Codable {
+    enum Kind: String, CaseIterable, Identifiable, Codable {
         case insert = "插入"
         case delete = "删除"
         case replace = "替换"
         case strip = "剥离字符"
+        case cleanUp = "清理垃圾"
         case changeCase = "大小写"
         var id: String { rawValue }
 
@@ -103,20 +104,21 @@ struct NameRule: Identifiable, Equatable {
             case .delete: return "从第 N 位删若干字符，或删到末尾"
             case .replace: return "查找替换；「换成」留空就是移除"
             case .strip: return "一次去掉所有某类字符"
+            case .cleanUp: return "去掉 (1)、[副本]、多余空格这类垃圾"
             case .changeCase: return "统一大小写风格"
             }
         }
     }
 
     /// 插入位置怎么确定。按位置要数数，按文字不用数 —— 日期格式变了也不会错位
-    enum Anchor: String, CaseIterable, Identifiable {
+    enum Anchor: String, CaseIterable, Identifiable, Codable {
         case position = "按位置"
         case beforeText = "在某段文字前"
         case afterText = "在某段文字后"
         var id: String { rawValue }
     }
 
-    enum Charset: String, CaseIterable, Identifiable {
+    enum Charset: String, CaseIterable, Identifiable, Codable {
         case space = "空格"
         case underscore = "下划线 _"
         case dash = "连字符 -"
@@ -159,7 +161,7 @@ struct NameRule: Identifiable, Equatable {
         }
     }
 
-    enum CaseStyle: String, CaseIterable, Identifiable {
+    enum CaseStyle: String, CaseIterable, Identifiable, Codable {
         case lower = "全小写"
         case upper = "全大写"
         case capitalize = "每词首字母大写"
@@ -206,9 +208,45 @@ struct NameRule: Identifiable, Equatable {
     var charset: Charset = .space
     var caseStyle: CaseStyle = .lower
 
+    // —— 清理垃圾
+    /// 删掉括号连同里面的内容：`照片(1)` → `照片`
+    var cleanBrackets = true
+    /// 合并多余空格、去掉首尾空格（顺带把各种 Unicode 空白压成普通空格）
+    var cleanSpaces = true
+    /// 把 `_` `.` 换成空格：`20240506_153008` → `20240506 153008`
+    var cleanSeparators = false
+    /// 去掉 emoji
+    var cleanEmoji = false
+
+    /// 宽容解码：字段缺席就用默认值。
+    ///
+    /// 合成的 `init(from:)` 要求每个 key 都在，那样以后给规则加一个开关，
+    /// 用户存在磁盘上的旧预设会**整份**解不出来、全部丢失。宁可少一个字段也不能这样。
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
+        kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .insert
+        position = (try? c.decode(Int.self, forKey: .position)) ?? 1
+        count = (try? c.decode(Int.self, forKey: .count)) ?? 1
+        toEnd = (try? c.decode(Bool.self, forKey: .toEnd)) ?? false
+        text = (try? c.decode(String.self, forKey: .text)) ?? ""
+        replacement = (try? c.decode(String.self, forKey: .replacement)) ?? ""
+        caseSensitive = (try? c.decode(Bool.self, forKey: .caseSensitive)) ?? true
+        anchor = (try? c.decode(Anchor.self, forKey: .anchor)) ?? .position
+        anchorText = (try? c.decode(String.self, forKey: .anchorText)) ?? ""
+        charset = (try? c.decode(Charset.self, forKey: .charset)) ?? .space
+        caseStyle = (try? c.decode(CaseStyle.self, forKey: .caseStyle)) ?? .lower
+        cleanBrackets = (try? c.decode(Bool.self, forKey: .cleanBrackets)) ?? true
+        cleanSpaces = (try? c.decode(Bool.self, forKey: .cleanSpaces)) ?? true
+        cleanSeparators = (try? c.decode(Bool.self, forKey: .cleanSeparators)) ?? false
+        cleanEmoji = (try? c.decode(Bool.self, forKey: .cleanEmoji)) ?? false
+    }
+
     /// 侧栏规则卡片标题用的一句话摘要
-    var summary: String {
-        switch kind {
+    var summary: String {        switch kind {
         case .insert:
             let where_ = anchor == .position ? "第 \(position) 位后" : "「\(anchorText)」\(anchor == .beforeText ? "前" : "后")"
             return "在\(where_)插入「\(text)」"
@@ -220,6 +258,13 @@ struct NameRule: Identifiable, Equatable {
                 : "「\(text)」换成「\(replacement)」"
         case .strip:
             return "去掉所有\(charset.rawValue)"
+        case .cleanUp:
+            var parts: [String] = []
+            if cleanBrackets { parts.append("括号内容") }
+            if cleanSpaces { parts.append("多余空格") }
+            if cleanSeparators { parts.append("下划线/点") }
+            if cleanEmoji { parts.append("emoji") }
+            return parts.isEmpty ? "没有勾选任何项" : "清掉" + parts.joined(separator: "、")
         case .changeCase:
             return caseStyle.rawValue
         }
@@ -301,4 +346,16 @@ struct PlanStats {
     var rename = 0
     var same = 0
     var skip = 0
+}
+
+// MARK: - 小工具
+
+extension Character {
+    /// 只认「默认就按 emoji 画出来」的字符（😀 ✅ 🎉 …）。
+    ///
+    /// 不用 `unicodeScalars.properties.isEmoji` —— 它对 `#`、`*`、`0`–`9` 也为真
+    /// （keycap 表情的基础字符），会把文件名里的数字一起删掉。
+    var isEmojiPresentation: Bool {
+        unicodeScalars.contains { $0.properties.isEmojiPresentation }
+    }
 }

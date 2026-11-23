@@ -159,9 +159,60 @@ enum Planner {
         case .strip:
             let drop = r.charset.characters
             return String(stem.filter { !drop.contains($0) })
+        case .cleanUp:
+            return cleanUpRule(stem, r)
         case .changeCase:
             return changeCase(stem, r.caseStyle)
         }
+    }
+
+    // MARK: 清理垃圾
+
+    /// 对应 ReNamer 的 Clean Up 规则，只保留跟照片 / 下载文件有关的那几项。
+    ///
+    /// 顺序是有讲究的：先摘括号（`照片(1)` → `照片`），再换分隔符，
+    /// 最后统一压空格 —— 反过来的话先把括号变成空格，就会留下 `照片 ` 这种尾巴。
+    private static func cleanUpRule(_ stem: String, _ r: NameRule) -> String {
+        var s = stem
+
+        if r.cleanBrackets {
+            s = removeBracketContents(s)
+        }
+        if r.cleanSeparators {
+            s = s.replacingOccurrences(of: "_", with: " ")
+                 .replacingOccurrences(of: ".", with: " ")
+        }
+        if r.cleanEmoji {
+            s = String(s.filter { !$0.isEmojiPresentation })
+        }
+        if r.cleanSpaces {
+            // 连续空格 / Tab / 全角空格一律压成一个半角空格，首尾也顺带去掉
+            s = s.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        }
+        return s
+    }
+
+    /// 连括号带内容一起摘掉。支持中英文圆括号、方括号、花括号、书名号、方头括号。
+    ///
+    /// 用深度计数而不是正则：`照片(1)(2)` 这种多组要一次全摘，
+    /// 而且括号里再套括号的情况正则很难写对。
+    static func removeBracketContents(_ s: String) -> String {
+        let open: Set<Character> = ["(", "（", "[", "【", "{", "「"]
+        let close: Set<Character> = [")", "）", "]", "】", "}", "」"]
+        var out = ""
+        var depth = 0
+        for ch in s {
+            if open.contains(ch) {
+                depth += 1
+                continue
+            }
+            if close.contains(ch) {
+                if depth > 0 { depth -= 1 }
+                continue
+            }
+            if depth == 0 { out.append(ch) }
+        }
+        return out
     }
 
     // MARK: 插入

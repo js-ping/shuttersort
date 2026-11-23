@@ -38,6 +38,7 @@ struct CLIArgs {
     ///     delete:<位置>:<个数|end>           从第 N 位删若干个；end = 删到末尾
     ///     replace:<找>:<换成>                替换（「换成」留空 = 移除）
     ///     strip:<space|underscore|dash|brackets|symbols|digits>
+    ///     clean:<brackets,spaces,seps,emoji>  只开列出来的那几项清理
     ///     case:<lower|upper|capitalize|sentence>
     static func parseRule(_ s: String) -> NameRule? {
         let parts = s.split(separator: ":", maxSplits: 2,
@@ -88,6 +89,20 @@ struct CLIArgs {
             guard let c = NameRule.Charset.fromKey(body.first ?? "") else { return nil }
             r.kind = .strip
             r.charset = c
+            return r
+
+        case "clean":
+            let keys = (body.first ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            let known: Set<String> = ["brackets", "spaces", "seps", "emoji"]
+            guard !keys.isEmpty, keys.allSatisfy({ known.contains($0) }) else { return nil }
+            r.kind = .cleanUp
+            r.cleanBrackets = keys.contains("brackets")
+            r.cleanSpaces = keys.contains("spaces")
+            r.cleanSeparators = keys.contains("seps")
+            r.cleanEmoji = keys.contains("emoji")
             return r
 
         case "case":
@@ -255,8 +270,8 @@ func renameSelfTest(rows: [MediaRow], plan: [PlanItem]) -> Int32 {
 
 // ---------------- 改名规则自检 ----------------
 
-/// 五类规则的边界全钉在这里：0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 /
-/// 中文按字符计数 / 扩展名保护 / 删空回退。
+/// 六类规则的边界全钉在这里：0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 /
+/// 中文按字符计数 / 扩展名保护 / 删空回退 / 括号嵌套 / emoji 与数字的区分。
 ///
 /// 这类「数错一位」的 bug 肉眼极难发现 —— 界面里看着像对的，
 /// 改完一百张照片才发现每张少了两个字。所以放进 CI 当闸门。
@@ -350,6 +365,37 @@ func editSelfTest() -> Int32 {
           "Img_Abc", "大小写：每词首字母大写")
     check(Planner.applyRules("IMG_ABC", [changeCase(.sentence)]),
           "Img_abc", "大小写：首字母大写、其余小写")
+
+    // ---- 清理垃圾
+    func clean(bracket: Bool = false, spaces: Bool = false,
+               seps: Bool = false, emoji: Bool = false) -> NameRule {
+        var r = NameRule(); r.kind = .cleanUp
+        r.cleanBrackets = bracket; r.cleanSpaces = spaces
+        r.cleanSeparators = seps; r.cleanEmoji = emoji
+        return r
+    }
+
+    check(Planner.applyRules("照片(1)", [clean(bracket: true)]), "照片", "清理：摘掉括号内容")
+    check(Planner.applyRules("照片(1)(2)", [clean(bracket: true)]), "照片", "清理：多组括号一次全摘")
+    check(Planner.applyRules("照片[副本]（修改）", [clean(bracket: true)]), "照片", "清理：中英文括号都认")
+    check(Planner.applyRules("外(内)壳", [clean(bracket: true)]), "外壳", "清理：括号里套括号也摘干净")
+    check(Planner.applyRules("照片(1)", [clean(spaces: true)]), "照片(1)", "清理：没勾括号就不动括号")
+    check(Planner.applyRules("a   b", [clean(spaces: true)]), "a b", "清理：连续空格压成一个")
+    check(Planner.applyRules("  照片  ", [clean(spaces: true)]), "照片", "清理：去掉首尾空格")
+    check(Planner.applyRules("a\tb\u{3000}c", [clean(spaces: true)]),
+          "a b c", "清理：Tab 与全角空格统一成半角")
+    check(Planner.applyRules("20260101_120000", [clean(seps: true)]),
+          "20260101 120000", "清理：下划线换空格")
+    check(Planner.applyRules("a.b_c", [clean(seps: true)]), "a b c", "清理：点和下划线换空格")
+    check(Planner.applyRules("照片😀1", [clean(emoji: true)]), "照片1", "清理：去掉 emoji")
+    check(Planner.applyRules("照片2024", [clean(emoji: true)]),
+          "照片2024", "清理：数字不会被当成 emoji 删掉")
+    check(Planner.applyRules("照片(1)", [clean()]), "照片(1)", "清理：一项都不勾 = 原样返回")
+    check(Planner.applyRules("IMG_20260101_120000(2)",
+                             [clean(bracket: true, spaces: true, seps: true)]),
+          "IMG 20260101 120000", "清理：三项一起用时顺序正确（先摘括号再换空格）")
+    check(Planner.applyRules("(1)", [clean(bracket: true)]),
+          "", "清理：删光返回空串（上层会退回原名，不会产出 .jpg）")
 
     // ---- 多条叠加：前一条的结果是后一条的输入
     check(Planner.applyRules(base, [del(1, 4), ins(0, "P_")]),

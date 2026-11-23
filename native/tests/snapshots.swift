@@ -129,17 +129,19 @@ final class Snapper {
         state.rebuildPlan(immediate: true)
         shoot("sidebar", SidebarView(), width: Theme.sidebarWidth, height: 780)
 
-        // 侧栏 + 五种规则各一条，专门看那块 UI 排得下排不下
+        // 侧栏 + 六种规则各一条，专门看那块 UI 排得下排不下
         state.rules = [
             { var r = NameRule(); r.kind = .insert; r.anchor = .position
               r.position = 4; r.text = "-"; return r }(),
             { var r = NameRule(); r.kind = .delete; r.position = 1; r.count = 4; return r }(),
             { var r = NameRule(); r.kind = .replace; r.text = "IMG_"; r.replacement = "照片_"; return r }(),
             { var r = NameRule(); r.kind = .strip; r.charset = .space; return r }(),
+            { var r = NameRule(); r.kind = .cleanUp
+              r.cleanBrackets = true; r.cleanSpaces = true; return r }(),
             { var r = NameRule(); r.kind = .changeCase; r.caseStyle = .lower; return r }(),
         ]
         state.rebuildPlan(immediate: true)
-        shoot("sidebar-rules", SidebarView(), width: Theme.sidebarWidth, height: 1180)
+        shoot("sidebar-rules", SidebarView(), width: Theme.sidebarWidth, height: 1320)
 
         // 只留两条真正干活的规则，拍表格看「新文件名」列的实际结果
         state.rules = [

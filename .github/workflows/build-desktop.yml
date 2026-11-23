@@ -52,14 +52,34 @@ jobs:
         # 任何一处不一致都会让这个 job 失败，后面打包和发布都不会跑。
         run: python3 tests/run_parity.py
 
-      - name: 改名规则自检（38 项边界）
+      - name: 改名规则自检（53 项边界）
         working-directory: native
         # 「按位置增删」最怕数错一位 —— 界面里看着像对的，改完一百张才发现每张少两个字。
-        # 这里把 0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 / 中文 / 扩展名保护全钉成断言。
+        # 这里把 0 / 负数 / 超长 / 锚点找不到 / 叠加 / 停用 / 中文 / 扩展名保护 / 括号嵌套全钉成断言。
         run: |
           set -eux
           swiftc -O Sources/Core/*.swift Sources/CLI/main.swift -o "$RUNNER_TEMP/ss-cli"
           "$RUNNER_TEMP/ss-cli" edit-test
+
+      - name: 时间戳来源切换自检（9 项）
+        working-directory: native
+        # 切「时间戳来源」曾经改了不刷新 —— 选项像坏的，其实得重扫才能生效。
+        # 这里把「跳过 → 修改 → 创建 → 跳过」这一圈的行为钉死，包括「不能覆盖真实拍摄时间」。
+        run: |
+          set -eux
+          swiftc -O Sources/Core/*.swift Sources/UI/AppState.swift tests/fallback-test.swift \
+            -o "$RUNNER_TEMP/ss-fb" -framework SwiftUI -framework AppKit
+          SHUTTERSORT_STATE_DIR="$RUNNER_TEMP/ss-state" \
+            "$RUNNER_TEMP/ss-fb" "$TMPDIR/shuttersort-corpus"
+
+      - name: 预设读写自检（14 项）
+        working-directory: native
+        # 预设是唯一「用户自己攒出来、丢了没法重建」的数据。这里验完整往返 + 旧格式兼容 ——
+        # 以后给规则加字段，不能让用户存的六套预设整份失效。
+        run: |
+          set -eux
+          swiftc -O Sources/Core/*.swift tests/preset-test.swift -o "$RUNNER_TEMP/ss-preset"
+          "$RUNNER_TEMP/ss-preset" "$RUNNER_TEMP/ss-preset-dir"
 
       - name: 编译原生版 + 打 zip / dmg
         working-directory: native
